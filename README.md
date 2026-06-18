@@ -24,22 +24,39 @@ git clone https://github.com/wolkart/aifuture_hub.git
 
 ## Как подключить скиллы к Claude Code
 
-Папка `skills/` — это **дистрибутив**: чтобы скилл срабатывал в Claude Code, его нужно положить туда, где Claude ищет скиллы. Удобнее всего — **симлинком** на склонированный репозиторий (правишь/обновляешь репо — скилл сразу актуален), не копируя файлы.
+Папка `skills/` — это **дистрибутив**: чтобы скилл срабатывал в Claude Code, его нужно положить туда, где Claude ищет скиллы. Удобнее всего — **ссылкой** на склонированный репозиторий (правишь/обновляешь репо — скилл сразу актуален), не копируя файлы.
+
+### Все скиллы сразу (рекомендую)
+
+Скрипты идемпотентны — подключают новые скиллы и не трогают уже подключённые. Запускай повторно после `git pull`, когда в репо появятся новые скиллы.
+
+```powershell
+# Windows (без прав админа)
+git clone https://github.com/wolkart/aifuture_hub.git
+powershell -ExecutionPolicy Bypass -File .\aifuture_hub\skills\install-skills.ps1
+```
 
 ```bash
-# Linux / macOS / Git Bash — на примере скилла reels-script
+# macOS / Linux / Git Bash
 git clone https://github.com/wolkart/aifuture_hub.git
+bash ./aifuture_hub/skills/install-skills.sh
+```
+
+### Один скилл вручную
+
+```powershell
+# Windows — junction (mklink /J): работает без админа и Developer Mode
+cmd /c mklink /J "$env:USERPROFILE\.claude\skills\reels-script" "C:\путь\к\aifuture_hub\skills\reels-script"
+```
+
+```bash
+# Linux / macOS / Git Bash
 ln -s "$(pwd)/aifuture_hub/skills/reels-script" ~/.claude/skills/reels-script
 ```
 
-```powershell
-# Windows (PowerShell; нужен developer mode или запуск от админа)
-New-Item -ItemType SymbolicLink `
-  -Path "$env:USERPROFILE\.claude\skills\reels-script" `
-  -Target "C:\путь\к\aifuture_hub\skills\reels-script"
-```
-
 После этого скилл доступен **во всех проектах**. Для одного проекта вместо `~/.claude/skills/` используй `.claude/skills/` внутри него.
+
+> **Перенёс репозиторий?** Ссылки хранят абсолютный путь и станут битыми. Удали их из `~/.claude/skills/` (`Remove-Item <ссылка>` / `rm <ссылка>` — файлы скилла в репо это не трогает) и запусти скрипт установки заново.
 
 > Установку «в один клик» (через `/plugin`) добавлю позже, когда оформлю хаб как плагин-маркетплейс.
 
