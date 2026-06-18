@@ -14,6 +14,7 @@
 | [ai-research/](ai-research/) | Ресёрч AI-мира из авторитетных источников: идеи для контента, новостной дайджест или подборка недели (со ссылками) |
 | [instagram-downloader/](instagram-downloader/) | По ссылке на Instagram вытаскивает медиа + подпись (RapidAPI / yt-dlp) и обязательно передаёт референс на переупаковку в reels-script / carousel-script |
 | [instagram-analytics/](instagram-analytics/) | Разведка ниши/конкурентов через Apify: scout (метрики+ранжирование) → enrich (транскрипт+разбор сценария), выгрузка в Markdown-базу + CSV; хэндофф в reels-script/carousel-script |
+| [content-machine/](content-machine/) | Оркестратор «идея → готовый контент»: роутер источников (своя идея / ai-research / downloader / analytics) → делегирование reels-script/carousel-script; рекомендует формат, headless-готовность под Hermes |
 
 ## Структура
 
