@@ -12,6 +12,7 @@
 | [reels-script/](reels-script/) | Превращает идею в вирусный сценарий Reels/Shorts: хук 1–3 сек, одна мысль, удар по болям |
 | [carousel-script/](carousel-script/) | Превращает идею в карусель для Instagram/LinkedIn: обложка-хук, одна мысль/слайд, per-slide спек под рендер |
 | [ai-research/](ai-research/) | Ресёрч AI-мира из авторитетных источников: идеи для контента, новостной дайджест или подборка недели (со ссылками) |
+| [instagram-downloader/](instagram-downloader/) | По ссылке на Instagram вытаскивает медиа + подпись (RapidAPI / yt-dlp) и обязательно передаёт референс на переупаковку в reels-script / carousel-script |
 
 ## Структура
 
