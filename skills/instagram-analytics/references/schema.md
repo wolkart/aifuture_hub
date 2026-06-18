@@ -74,6 +74,38 @@ tier2_status: skeleton
 
 После `enrich`: `tier2_status: enriched`, заполнены Транскрипт и Разбор.
 
+После enrich карточка `cards/<id>.md` несёт полную схему во frontmatter:
+
+```markdown
+---
+id: <id>
+author: <author>
+url: <url>
+type: reel
+date: 2026-06-10
+views: 1200000
+likes: 80000
+comments: 1200
+engagement_rate: 0.0676
+video_url: <video_url>
+hashtags: [tag1, tag2]
+tier2_status: enriched
+transcript: |
+  <полная расшифровка речи рилса>
+scenario:
+  hook: "<текст хука> (<тип>)"
+  body_beats:
+    - "<бит 1>"
+    - "<бит 2>"
+  cta: "<призыв / лидмагнит>"
+notes: <notes>
+---
+
+(тело карточки — те же поля в читаемом виде: ## Подпись, ## Транскрипт, ## Разбор сценария, ## Заметки)
+```
+
+Так frontmatter = полная схема записи (для frontmatter-парсера БД), тело — читаемое зеркало, а `export.csv` — плоский full-schema артефакт для импорта в Sheets/БД.
+
 ## Колонки `export.csv`
 
 `id,author,url,type,date,caption,views,likes,comments,engagement_rate,video_url,hashtags,tier2_status,transcript,hook,body_beats,cta,notes`

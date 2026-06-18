@@ -21,6 +21,7 @@ cp .env.template .env
 # APIFY_ACTOR=<актор IG-скрейпера; дефолт apify~instagram-scraper>
 # ASR_PROVIDER=openai|local|apify|none   (для enrich; none = без транскрипта)
 # OPENAI_API_KEY=<если ASR_PROVIDER=openai>
+# APIFY_ASR_ACTOR=<если ASR_PROVIDER=apify>
 # OUTPUT_DIR=<куда писать базу; дефолт ./instagram-analytics-output, можно путь к Obsidian-волту>
 ```
 

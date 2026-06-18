@@ -24,7 +24,7 @@ whisper "audio-<id>.mp3" --model small --output_format txt
 ```
 
 ## apify (ASR-актор) — нужен `APIFY_ASR_ACTOR`
-Вызов как в references/apify.md (run-sync), вход — ссылка/файл аудио; из ответа взять текстовое поле → transcript.
+Вызов как в references/apify.md (run-sync), вход — ссылка/файл аудио; из ответа взять текстовое поле → transcript. Внимание: входные ключи ASR-актора отличаются от скрейпера (directUrls/resultsType неприменимы) — адаптируй input под фактический ASR-актор.
 
 ## none / ошибка
 Транскрипт = пусто. В карточке пометь: «транскрипт недоступен (ASR не настроен)». Переходи к разбору по подписи (см. scenario-breakdown.md).
