@@ -18,7 +18,7 @@
 
 ### (а) Светофор голоса — `brand-voice §6`
 
-Источник: `../../../brand-voice/references/brand-voice.md`, §6 (юмор и тональность) и §11 (контрольные вопросы).
+Источник: `../../../skills/brand-voice/references/brand-voice.md`, §6 (юмор и тональность) и §11 (контрольные вопросы).
 
 Три уровня:
 
@@ -33,7 +33,7 @@
 
 ### (б) Анти-шаблон — `brand-voice §4`
 
-Источник: `../../../brand-voice/references/brand-voice.md`, §4 (словарь — регистр, не чек-лист) и анти-правило §4.
+Источник: `../../../skills/brand-voice/references/brand-voice.md`, §4 (словарь — регистр, не чек-лист) и анти-правило §4.
 
 Проверяешь:
 
@@ -44,7 +44,7 @@
 
 ### (в) Вёрстка и длинное тире — `brand-voice §8`
 
-Источник: `../../../brand-voice/references/brand-voice.md`, §8.
+Источник: `../../../skills/brand-voice/references/brand-voice.md`, §8.
 
 Проверяешь:
 
