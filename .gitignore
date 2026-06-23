@@ -30,3 +30,6 @@ venv/
 
 # Личный рабочий материал (корпус постов, исходники руководств) — только локально
 docs/superpowers/working/
+
+# Скретч subagent-driven исполнения (ledger прогресса)
+.superpowers/
