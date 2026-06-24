@@ -92,8 +92,8 @@ Frontmatter: `name: post-hq` + `description` с триггерами («напи
 
 ## Фазы
 
-- **Фаза 1 (этот цикл):** `SKILL.md` (оркестратор) + подключение `brand-voice` + `platforms/telegram.md` + обе `purposes/` + `frameworks/hormozi.md` + `frameworks/ogilvy.md` + `review.md` + `README.md` + каталог + install. Полностью рабочий штаб под Telegram (контент и продажа).
-- **Фаза 2 (следующий цикл):** `platforms/threads-x.md`, `linkedin.md`, `instagram-caption.md` по контракту платформы.
+- **Фаза 1 ✅ (сделано):** `SKILL.md` (оркестратор) + подключение `brand-voice` + `platforms/telegram.md` + обе `purposes/` + `frameworks/hormozi.md` + `frameworks/ogilvy.md` + `review.md` + `README.md` + каталог + install. Полностью рабочий штаб под Telegram (контент и продажа).
+- **Фаза 2 ✅ (сделано):** `platforms/threads-x.md`, `linkedin.md`, `instagram-caption.md` добавлены по контракту платформы; роутинг в `SKILL.md` расширен на все 4 площадки; триггеры в `description` дополнены.
 
 ## Входы (есть на диске, локально)
 - Голос: `skills/brand-voice/` (готов).
