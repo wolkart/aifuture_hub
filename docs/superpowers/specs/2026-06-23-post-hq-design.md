@@ -92,8 +92,8 @@ Frontmatter: `name: post-hq` + `description` с триггерами («напи
 
 ## Фазы
 
-- **Фаза 1 (этот цикл):** `SKILL.md` (оркестратор) + подключение `brand-voice` + `platforms/telegram.md` + обе `purposes/` + `frameworks/hormozi.md` + `frameworks/ogilvy.md` + `review.md` + `README.md` + каталог + install. Полностью рабочий штаб под Telegram (контент и продажа).
-- **Фаза 2 (следующий цикл):** `platforms/threads-x.md`, `linkedin.md`, `instagram-caption.md` по контракту платформы.
+- **Фаза 1 ✅ (сделано):** `SKILL.md` (оркестратор) + подключение `brand-voice` + `platforms/telegram.md` + обе `purposes/` + `frameworks/hormozi.md` + `frameworks/ogilvy.md` + `review.md` + `README.md` + каталог + install. Полностью рабочий штаб под Telegram (контент и продажа).
+- **Фаза 2 ✅ (сделано):** `platforms/threads-x.md`, `linkedin.md`, `instagram-caption.md` добавлены по контракту платформы; роутинг в `SKILL.md` расширен на все 4 площадки; триггеры в `description` дополнены.
 
 ## Входы (есть на диске, локально)
 - Голос: `skills/brand-voice/` (готов).
@@ -105,4 +105,4 @@ Frontmatter: `name: post-hq` + `description` с триггерами («напи
 - Воронка-автоматизация (многошаговые последовательности, триггеры).
 - Интеграция в `content-machine` (позже) — **роадмап:** `content-machine` (роутер источников) передаёт найденную `ai-research` новость/идею в `post-hq` как ещё один формат доставки (наряду с reels/carousel). Сегодня хендофф ручной (выход ai-research = валидное «сырьё» для post-hq); авто-связку делаем отдельным циклом после Фазы 2.
 - Реальные dispatched-агенты внутри скилла (это слой Hermes).
-- Фаза 2 платформы (отдельный цикл).
+- Фаза 2 платформы — ✅ выполнено (Threads/X, LinkedIn, Instagram-подписи добавлены).
