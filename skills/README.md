@@ -18,7 +18,7 @@
 | [instagram-analytics/](instagram-analytics/) | Разведка ниши/конкурентов через Apify: scout (метрики+ранжирование) → enrich (транскрипт+разбор сценария), выгрузка в Markdown-базу + CSV; хэндофф в reels-script/carousel-script |
 | [content-machine/](content-machine/) | Оркестратор «идея → готовый контент»: роутер источников (своя идея / ai-research / downloader / analytics) → делегирование reels-script/carousel-script; рекомендует формат, headless-готовность под Hermes |
 | [brand-voice/](brand-voice/) | Голос автора + универсальные принципы текста: слой-фильтр для написания постов (лестница вмешательства, критика по светофору, Telegram-вёрстка) |
-| [post-hq/](post-hq/) | Штаб постов: ведёт идею через голос (brand-voice) → цель (контент/продажа по Огилви/Хормози) → площадку (Telegram) → ревью; делегирует визуал carousel-script |
+| [post-hq/](post-hq/) | Штаб постов: ведёт идею через голос (brand-voice) → цель (контент/продажа по Огилви/Хормози) → площадку (Telegram, Threads/X, LinkedIn, Instagram) → ревью; делегирует визуал carousel-script |
 
 ## Структура
 
