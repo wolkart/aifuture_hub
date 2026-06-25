@@ -103,6 +103,6 @@ Frontmatter: `name: post-hq` + `description` с триггерами («напи
 ## Вне области (не делаем)
 - Постинг/доставка контента (рантайм/Hermes).
 - Воронка-автоматизация (многошаговые последовательности, триггеры).
-- Интеграция в `content-machine` (позже) — **роадмап:** `content-machine` (роутер источников) передаёт найденную `ai-research` новость/идею в `post-hq` как ещё один формат доставки (наряду с reels/carousel). Сегодня хендофф ручной (выход ai-research = валидное «сырьё» для post-hq); авто-связку делаем отдельным циклом после Фазы 2.
+- Интеграция в `content-machine` ✅ (сделано 2026-06-25, спек `docs/superpowers/specs/2026-06-25-content-machine-post-hq-integration-design.md`) — `content-machine` передаёт найденную `ai-research` идею/новость в `post-hq` как формат доставки «пост» (наряду с reels/carousel); хэндофф `ai-research` (ideas/digest) → `post-hq` дотянут.
 - Реальные dispatched-агенты внутри скилла (это слой Hermes).
 - Фаза 2 платформы — ✅ выполнено (Threads/X, LinkedIn, Instagram-подписи добавлены).
