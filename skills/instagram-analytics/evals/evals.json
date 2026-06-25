@@ -4,13 +4,13 @@
     {
       "id": 1,
       "prompt": "разбери конкурента @nik.travel — выгрузи последние рилс с метриками",
-      "expected_output": "Режим scout: Apify-вызов, ранжированный index.md + карточки-скелеты + export.csv в OUTPUT_DIR, сводка с топом по ER",
+      "expected_output": "Режим scout: Apify-вызов, в папку блогера <OUTPUT_DIR>/nik.travel/ — ранжированный index.md (колонка «Тема» = ссылка в карточку) + карточки-скелеты (aliases+title) + export.csv, обновлён _Разведка.base, сводка с топом по ER",
       "files": []
     },
     {
       "id": 2,
       "prompt": "enrich: обработай по полной топ-3 из последней разведки",
-      "expected_output": "Режим enrich: по 3 рилс аудио→транскрипт→разбор сценария (хук/тело/CTA), дописано в карточки, tier2_status=enriched",
+      "expected_output": "Режим enrich: по 3 рилс аудио→транскрипт→дословный перевод на русский (transcript_ru)→разбор сценария (хук/тело/CTA), дописано в карточки, tier2_status=enriched",
       "files": []
     },
     {
@@ -29,8 +29,8 @@
   "assertions": [
     "Режим определён верно: 1→scout, 2→enrich, 3→enrich(деградация), 4→анти-репост/референс",
     "scout: Apify run-sync, маппинг в схему, engagement_rate вычислен, ранжирование по убыв.",
-    "scout пишет index.md + cards/<id>.md (skeleton) + export.csv в OUTPUT_DIR, идемпотентно по id",
-    "enrich выборочно (top-N/#id/URL): транскрипт + разбор хук/тело/CTA, дописывает в карточку, tier2_status=enriched",
+    "scout пишет в папку блогера <OUTPUT_DIR>/<author>/: index.md (тема=ссылка) + cards/<id>.md (skeleton, aliases+title) + export.csv; обновляет _Разведка.base; идемпотентно по id",
+    "enrich выборочно (top-N/#id/URL): транскрипт + дословный перевод на русский (transcript_ru) + разбор хук/тело/CTA, дописывает в карточку, tier2_status=enriched",
     "Грациозная деградация ASR: нет движка → транскрипт пуст, разбор по подписи, помечено честно",
     "Хэндофф: рилс→reels-script, пост/карусель→carousel-script с нишей пользователя",
     "Анти-репост: собранное = референс, дословный репост не предлагается",
