@@ -41,22 +41,24 @@ description: >-
 
 1. Извлеки вход: профиль(и) `@handle`/URL и/или ссылки на посты/рилс.
 2. Вызови Apify (см. [references/apify.md](references/apify.md)).
-3. Распарси датасет и **смаппь в схему** (см. [references/schema.md](references/schema.md)); вычисли `engagement_rate`.
-4. Ранжируй по `engagement_rate` (убыв.).
-5. Запиши/обнови в `<OUTPUT_DIR>`: `index.md` (ранжированная таблица), карточки-скелеты `cards/<id>.md` (`tier2_status: skeleton`), `export.csv`. Идемпотентно по `id`.
-6. Без ASR/LLM-разбора — токены почти не тратятся.
+3. Распарси датасет и **смаппь в схему** (см. [references/schema.md](references/schema.md)); вычисли `engagement_rate` (только при `views>0`); собери `title` (читаемый ярлык из caption).
+4. Ранжируй: видео по `engagement_rate` (убыв.), не-видео — ниже, по вовлечённости.
+5. Запиши/обнови **в папку блогера** `<OUTPUT_DIR>/<author>/`: `index.md` (колонка «Тема» = ссылка `[[cards/<id>\|<title>]]`), карточки-скелеты `cards/<id>.md` (`aliases`+`title`+читаемый H1, `tier2_status: skeleton`, бэклинк `[[<author>]]`), `export.csv`. Идемпотентно по `id` внутри папки автора.
+6. Обнови/создай `<OUTPUT_DIR>/_Разведка.base` — кросс-блогерный срез (шаблон в [references/schema.md](references/schema.md)).
+7. Без ASR/LLM-разбора — токены почти не тратятся.
 
 ### `enrich` (Tier-2 — дорого, выборочно)
 
 1. Вход: выборка — `top-N`, список `#id`, или конкретные URL (из уже собранной базы).
-2. По каждому выбранному рилсу: извлеки аудио → транскрибируй (см. [references/asr.md](references/asr.md)) → разложи сценарий (см. [references/scenario-breakdown.md](references/scenario-breakdown.md)).
-3. **Допиши** транскрипт и разбор в существующую карточку и строку CSV; обнови `tier2_status` → `enriched`.
+2. По каждому выбранному рилсу: извлеки аудио (mp4 во **временную** папку — в волт не кладём, после ASR стираем) → транскрибируй (см. [references/asr.md](references/asr.md)) → **переведи транскрипт дословно на русский** (`transcript_ru`; если оригинал уже RU — пропусти) → разложи сценарий (см. [references/scenario-breakdown.md](references/scenario-breakdown.md)).
+3. **Допиши** `transcript`, `transcript_ru` и разбор в существующую карточку и строку CSV; обнови `tier2_status` → `enriched`.
 4. Грациозная деградация: ASR не настроен/ошибка → транскрипт пуст, разбор по подписи; `tier2_status` всё равно `enriched`.
 
 ## Метод
 
 - **Apify:** `APIFY_TOKEN` + конфигурируемый `APIFY_ACTOR` в `.env`; вызов инлайн через `run-sync-get-dataset-items`. Детали — [references/apify.md](references/apify.md).
-- **Выход:** `<OUTPUT_DIR>` (дефолт `./instagram-analytics-output`, override в `.env` — мостик к Obsidian-волту). Структура и схема — [references/schema.md](references/schema.md).
+- **Выход:** `<OUTPUT_DIR>/<author>/` (папка на блогера) + `<OUTPUT_DIR>/_Разведка.base` (кросс-блогерный срез); дефолт `./instagram-analytics-output`, override в `.env` — мостик к Obsidian-волту. Структура и схема — [references/schema.md](references/schema.md).
+- **Видео не храним:** mp4 качается во временную папку только под ASR и стирается; в волт идёт `video_url`, не файл.
 - **ASR (Tier-2):** конфигурируемый `ASR_PROVIDER` + деградация — [references/asr.md](references/asr.md).
 - **Разбор сценария:** [references/scenario-breakdown.md](references/scenario-breakdown.md).
 - **Без отдельного скрипта** — вызовы инлайн (`curl`, `yt-dlp`/ASR-команда).
