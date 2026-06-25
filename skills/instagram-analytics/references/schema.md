@@ -157,19 +157,21 @@ filters:
 views:
   - type: table
     name: Все по ER
-    order: [title, author, type, engagement_rate, views, tier2_status]
+    order: [file.name, title, author, type, engagement_rate, views, tier2_status]
     sort:
       - property: engagement_rate
         direction: DESC
   - type: table
     name: По блогерам
-    order: [author, title, engagement_rate, views, date]
+    order: [file.name, title, author, engagement_rate, views, date]
     sort:
       - property: author
         direction: ASC
       - property: engagement_rate
         direction: DESC
 ```
+
+`file.name` — обязательная первая колонка: именно она рендерится как **кликабельная ссылка** в карточку рилса (`title` — это текстовое свойство, не ссылка).
 
 Синтаксис Bases капризен к версии — если вид пуст/ошибка, упростить фильтр (`file.hasProperty("engagement_rate")`) и сортировку.
 
