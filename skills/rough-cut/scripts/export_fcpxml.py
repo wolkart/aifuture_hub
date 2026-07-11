@@ -19,27 +19,34 @@ def rt(seconds, num, den):
     return f"{frames * den}/{num}s"
 
 
+def _asset(res, rid, name, path, total, **attrs):
+    """Asset с медиа-ссылкой через <media-rep> (требование FCPXML 1.9 / Resolve)."""
+    a = ET.SubElement(res, "asset", id=rid, name=name,
+                      start="0s", duration=total, **attrs)
+    ET.SubElement(a, "media-rep", kind="original-media",
+                  src=Path(path).resolve().as_uri())
+    return a
+
+
 def build(d):
     num, den = d["fps"]["num"], d["fps"]["den"]
     fx = ET.Element("fcpxml", version="1.9")
     res = ET.SubElement(fx, "resources")
-    ET.SubElement(res, "format", id="r1", frameDuration=f"{den}/{num}s",
+    ET.SubElement(res, "format", id="r1", name=f"FFVideoFormat{d['height']}p",
+                  frameDuration=f"{den}/{num}s",
                   width=str(d["width"]), height=str(d["height"]))
     total = rt(d["duration_s"], num, den)
-    ET.SubElement(res, "asset", id="r2",
-                  src=Path(d["inputs"]["video"]).resolve().as_uri(),
-                  hasVideo="1", hasAudio="1", format="r1",
-                  start="0s", duration=total)
+    _asset(res, "r2", "camera", d["inputs"]["video"], total,
+           hasVideo="1", hasAudio="1", audioSources="1", audioChannels="2",
+           format="r1")
     audio = d["inputs"].get("audio")
     if audio:
-        ET.SubElement(res, "asset", id="r3",
-                      src=Path(audio).resolve().as_uri(),
-                      hasAudio="1", start="0s", duration=total)
+        _asset(res, "r3", "obs-audio", audio, total,
+               hasAudio="1", audioSources="1", audioChannels="2")
     video2 = d["inputs"].get("video2")
     if video2:
-        ET.SubElement(res, "asset", id="r4",
-                      src=Path(video2).resolve().as_uri(),
-                      hasVideo="1", format="r1", start="0s", duration=total)
+        _asset(res, "r4", "camera2", video2, total,
+               hasVideo="1", format="r1")
 
     seq = ET.SubElement(
         ET.SubElement(
