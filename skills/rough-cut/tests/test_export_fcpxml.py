@@ -28,6 +28,19 @@ def test_build_valid_xml():
     ET.fromstring(ET.tostring(root))
 
 
+def test_assets_use_media_rep_not_src_attr():
+    root = export_fcpxml.build(make_cutlist())
+    for asset in root.findall(".//resources/asset"):
+        assert asset.get("src") is None, "src должен быть в <media-rep>, не атрибутом"
+        rep = asset.find("media-rep")
+        assert rep is not None and rep.get("src", "").startswith("file://")
+
+
+def test_format_has_name():
+    root = export_fcpxml.build(make_cutlist())
+    assert root.find(".//resources/format").get("name")
+
+
 def test_spine_clips_match_timeline():
     root = export_fcpxml.build(make_cutlist())
     spine = root.find(".//spine")
