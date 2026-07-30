@@ -10,6 +10,8 @@ import os
 import shutil
 from pathlib import Path
 
+import envfile
+
 CHROME = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
 REQUIRED_FONTS = ("Oswald", "Montserrat")
 
@@ -61,6 +63,7 @@ def report(checks):
 
 
 def main():
+    envfile.load()
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--theme", default=os.environ.get("THEME_PATH"))
     args = ap.parse_args()
