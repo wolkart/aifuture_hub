@@ -1,0 +1,94 @@
+/* base.css — общее для всех карточек: сброс, размер, фоны, обвязка.
+   Значения приходят из темы через CSS-переменные — тут только композиция. */
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+html, body {
+  width: var(--ширина);
+  height: var(--высота);
+  overflow: hidden;
+}
+
+.карточка {
+  position: relative;
+  width: var(--ширина);
+  height: var(--высота);
+  padding: 80px 72px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.карточка.тёмная {
+  background: radial-gradient(circle at 50% 40%, var(--фон-тёмный-1), var(--фон-тёмный-2));
+  color: var(--текст-на-тёмном);
+}
+
+.карточка.светлая {
+  background: radial-gradient(circle at 50% 40%, var(--фон-светлый-1), var(--фон-светлый-2));
+  color: var(--текст-тела);
+}
+
+/* Зона содержимого: всё, что меряется на переполнение. */
+.содержимое {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-height: 0;
+}
+
+/* — Обвязка: бейдж «ЛИСТАЙ» — */
+.бейдж {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  font-family: Montserrat, sans-serif;
+  font-weight: var(--бейдж-вес);
+  font-size: 34px;
+  letter-spacing: 0.08em;
+}
+.бейдж.верх-центр { top: 56px; left: 50%; transform: translateX(-50%); }
+.бейдж.низ-право  { right: 72px; bottom: 64px; }
+.бейдж.нет        { display: none; }
+
+.бейдж .кружок {
+  width: 62px; height: 62px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 30px; line-height: 1;
+}
+.тёмная .бейдж            { color: var(--бейдж-на-тёмном); }
+.тёмная .бейдж .кружок    { background: var(--бейдж-на-тёмном); color: #111; }
+.светлая .бейдж           { color: var(--бейдж-кружок-на-светлом); }
+.светлая .бейдж .кружок   { background: var(--бейдж-кружок-на-светлом);
+                            color: var(--бейдж-текст-на-светлом); }
+
+/* — Обвязка: подпись с аватаркой — */
+.подпись {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  gap: 22px;
+  font-family: Montserrat, sans-serif;
+}
+.подпись.низ-центр  { bottom: 60px; left: 50%; transform: translateX(-50%); }
+.подпись.низ-лево   { bottom: 60px; left: 72px; }
+.подпись.верх-центр { top: 150px; left: 50%; transform: translateX(-50%); }
+.подпись.нет        { display: none; }
+
+.подпись img {
+  width: 78px; height: 78px; border-radius: 50%; object-fit: cover;
+}
+.подпись .имя {
+  font-weight: var(--подпись-имя-вес);
+  font-size: 44px;
+  line-height: 1.1;
+}
+.подпись .должность {
+  font-weight: var(--подпись-должность-вес);
+  font-size: 26px;
+  color: var(--должность);
+}
+
+.нить { white-space: nowrap; }
