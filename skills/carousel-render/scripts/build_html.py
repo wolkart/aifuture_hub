@@ -138,6 +138,23 @@ def layout_css(layout):
     return base + "\n" + own
 
 
+def band_classes(binding, signature_visible):
+    """Классы занятости краёв карточки.
+
+    Полоса под обвязку резервируется паддингом. Если на краю никого нет,
+    держать её незачем — содержимое получит эту высоту.
+    """
+    badge, sign = binding["бейдж"], binding["подпись_позиция"]
+    if not signature_visible:
+        sign = "нет"
+    top_busy = "верх-центр" in (badge, sign)
+    bottom_busy = badge.startswith("низ") or sign.startswith("низ")
+    return " ".join([
+        "верх-занят" if top_busy else "верх-свободен",
+        "низ-занят" if bottom_busy else "низ-свободен",
+    ])
+
+
 def _badge_html(position):
     if position == "нет":
         return ""
@@ -253,6 +270,7 @@ def build(slide, data, platform, sizes, base_dir):
 
     default = "показать" if default_visible else "скрыть"
     visible = slide.get("подпись", default) == "показать"
+    classes = f"{classes} {band_classes(binding, visible)}"
 
     return (
         "<!doctype html><html lang='ru'><head><meta charset='utf-8'><style>\n"

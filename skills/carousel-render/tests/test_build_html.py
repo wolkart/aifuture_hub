@@ -274,3 +274,26 @@ def test_binding_is_layered_above_photo_background():
     signature = css.split(".подпись {")[1].split("}")[0]
     assert "z-index" in badge
     assert "z-index" in signature
+
+
+def test_band_classes_marks_both_edges_busy():
+    b = {"бейдж": "верх-центр", "подпись_позиция": "низ-центр"}
+    assert build_html.band_classes(b, True) == "верх-занят низ-занят"
+
+
+def test_band_classes_frees_top_when_badge_moved_down():
+    """Автор убирает бейдж вниз, чтобы освободить верх — полоса должна сжаться."""
+    b = {"бейдж": "низ-право", "подпись_позиция": "низ-лево"}
+    assert build_html.band_classes(b, True) == "верх-свободен низ-занят"
+
+
+def test_band_classes_frees_bottom_on_photo_cover():
+    """На фото-обложке подпись погашена, снизу никого — полоса не нужна."""
+    b = {"бейдж": "верх-центр", "подпись_позиция": "низ-центр"}
+    assert build_html.band_classes(b, False) == "верх-занят низ-свободен"
+
+
+def test_band_classes_lands_in_markup(data, theme_dir):
+    slide = {"№": 4, "лейаут": "тело-список", "заголовок": "Р", "пункты": ["**а** — б"]}
+    got = build_html.build(slide, data, "IG", {"тело_список": 42}, theme_dir)
+    assert "верх-занят" in got or "верх-свободен" in got
