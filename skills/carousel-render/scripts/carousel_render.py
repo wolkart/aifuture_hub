@@ -8,6 +8,7 @@ import argparse
 import json
 import os
 import tempfile
+from contextlib import nullcontext
 from pathlib import Path
 
 import contact_sheet
@@ -22,8 +23,50 @@ def output_dir(slides_json, env_dir, name):
     return base / name
 
 
-def run(slides_json, theme_path, out_dir=None):
-    """Полный прогон карусели. Возвращает структуру для отчёта."""
+PREVIEW_CELL = 360
+
+
+def preview_page(html_names, card_w, card_h, cols=3):
+    """Страница со всеми карточками живьём, через iframe.
+
+    Карточки уже самодостаточны, поэтому показывать их можно как есть —
+    в масштабе. Это не картинка: можно открыть девтулзы и потрогать вёрстку,
+    прежде чем менять значение в теме.
+    """
+    scale = PREVIEW_CELL / card_w
+    cells = []
+    for name in html_names:
+        cells.append(
+            f'<figure><div class="рамка">'
+            f'<iframe src="_html/{name}" scrolling="no"></iframe>'
+            f"</div><figcaption>{Path(name).stem}</figcaption></figure>"
+        )
+    return (
+        "<!doctype html><html lang='ru'><head><meta charset='utf-8'>"
+        "<title>Превью карусели</title><style>"
+        "*{margin:0;padding:0;box-sizing:border-box}"
+        "body{background:#f2f2f4;padding:24px;font:14px -apple-system,sans-serif}"
+        "h1{font-size:16px;padding-bottom:16px}"
+        f".сетка{{display:grid;grid-template-columns:repeat({cols},{PREVIEW_CELL}px);gap:20px}}"
+        "figure{background:#fff;padding:8px;border-radius:8px}"
+        f".рамка{{width:{PREVIEW_CELL}px;height:{round(card_h * scale)}px;"
+        "overflow:hidden;border-radius:4px}"
+        f"iframe{{width:{card_w}px;height:{card_h}px;border:0;"
+        f"transform:scale({scale:.6f});transform-origin:0 0}}"
+        "figcaption{text-align:center;padding-top:8px;color:#666}"
+        "</style></head><body>"
+        "<h1>Превью — живой HTML. Правь тему и перезапусти прогон, "
+        "либо потрогай вёрстку девтулзами.</h1>"
+        "<div class='сетка'>" + "".join(cells) + "</div></body></html>"
+    )
+
+
+def run(slides_json, theme_path, out_dir=None, preview=False):
+    """Полный прогон карусели. Возвращает структуру для отчёта.
+
+    preview=True сохраняет промежуточный HTML рядом с PNG и собирает
+    страницу превью — обычно этот HTML живёт во временной папке и удаляется.
+    """
     slides_json = Path(slides_json)
     spec = json.loads(slides_json.read_text(encoding="utf-8"))
     data = theme_mod.load(theme_path)
@@ -37,8 +80,14 @@ def run(slides_json, theme_path, out_dir=None):
         slides_json, os.environ.get("OUTPUT_DIR"), name)
     target.mkdir(parents=True, exist_ok=True)
 
+    html_dir = target / "_html"
+    if preview:
+        html_dir.mkdir(parents=True, exist_ok=True)
+
     slides, pngs = [], []
-    with tempfile.TemporaryDirectory(prefix="carousel-render-") as tmp:
+    keeper = (nullcontext(str(html_dir)) if preview
+              else tempfile.TemporaryDirectory(prefix="carousel-render-"))
+    with keeper as tmp:
         for slide in spec["слайды"]:
             fitted = fit.fit_slide(slide, data, platform, slides_json.parent, tmp)
             png = target / f"{slide['№']:02d}.png"
@@ -53,7 +102,16 @@ def run(slides_json, theme_path, out_dir=None):
     sheet = (contact_sheet.build_sheet(pngs, target / "contact-sheet.png",
                                        card_w=fmt["ширина"], card_h=fmt["высота"])
              if pngs else None)
-    return {"папка": target, "слайды": slides, "простыня": sheet, "проблемы": problems}
+
+    page = None
+    if preview and slides:
+        page = target / "превью.html"
+        names = sorted(f.name for f in html_dir.glob("*.html"))
+        page.write_text(preview_page(names, fmt["ширина"], fmt["высота"]),
+                        encoding="utf-8")
+
+    return {"папка": target, "слайды": slides, "простыня": sheet,
+            "превью": page, "проблемы": problems}
 
 
 def format_report(result):
@@ -61,6 +119,8 @@ def format_report(result):
     lines = [f"Снято карточек: {len(result['слайды'])} → {result['папка']}"]
     if result.get("простыня"):
         lines.append(f"Простыня: {result['простыня']}")
+    if result.get("превью"):
+        lines.append(f"Превью (живой HTML): {result['превью']}")
 
     for s in result["слайды"]:
         if s["ступень"] > 0 and not s["переполнение"]:
@@ -81,10 +141,13 @@ def main():
     ap.add_argument("slides_json")
     ap.add_argument("--theme", default=os.environ.get("THEME_PATH"))
     ap.add_argument("--out")
+    # Два имени: кириллица под стиль скилла, латиница чтобы набирать в терминале.
+    ap.add_argument("--превью", "--preview", dest="preview", action="store_true",
+                    help="сохранить HTML карточек и собрать страницу превью")
     args = ap.parse_args()
     if not args.theme:
         raise SystemExit("THEME_PATH не задан — запусти scripts/check_env.py")
-    print(format_report(run(args.slides_json, args.theme, args.out)))
+    print(format_report(run(args.slides_json, args.theme, args.out, args.preview)))
 
 
 if __name__ == "__main__":

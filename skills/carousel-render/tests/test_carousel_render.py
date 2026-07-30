@@ -97,3 +97,45 @@ def test_run_is_deterministic(slides_json, theme_file, tmp_path):
     second = carousel_render.run(slides_json, theme_file, tmp_path / "b")
     for a, b in zip(first["слайды"], second["слайды"]):
         assert a["png"].read_bytes() == b["png"].read_bytes(), f"слайд {a['№']} разъехался"
+
+
+def test_preview_page_embeds_every_slide():
+    html = carousel_render.preview_page(["01.html", "02.html", "03.html"], 1080, 1350)
+    assert html.count("<iframe") == 3
+    assert "_html/01.html" in html
+
+
+def test_preview_page_scales_cards_to_cell():
+    html = carousel_render.preview_page(["01.html"], 1080, 1350)
+    assert "transform:scale(0.333333)" in html
+    assert "width:1080px;height:1350px" in html
+
+
+def test_report_mentions_preview_when_present():
+    result = {"папка": Path("/tmp/Т"), "слайды": [], "простыня": None,
+              "превью": Path("/tmp/Т/превью.html"), "проблемы": []}
+    assert "превью.html" in carousel_render.format_report(result)
+
+
+def test_report_omits_preview_when_absent():
+    result = {"папка": Path("/tmp/Т"), "слайды": [], "простыня": None,
+              "превью": None, "проблемы": []}
+    assert "Превью" not in carousel_render.format_report(result)
+
+
+@pytest.mark.integration
+def test_run_with_preview_keeps_html(slides_json, theme_file, tmp_path):
+    """С флагом превью промежуточный HTML остаётся рядом с PNG."""
+    result = carousel_render.run(slides_json, theme_file, tmp_path / "out", preview=True)
+    assert result["превью"].exists()
+    kept = sorted((tmp_path / "out" / "_html").glob("*.html"))
+    assert [p.name for p in kept] == ["01.html", "02.html"]
+    for p in kept:
+        assert "data:font/ttf" in p.read_text(encoding="utf-8")
+
+
+@pytest.mark.integration
+def test_run_without_preview_leaves_no_html(slides_json, theme_file, tmp_path):
+    result = carousel_render.run(slides_json, theme_file, tmp_path / "out")
+    assert result["превью"] is None
+    assert not (tmp_path / "out" / "_html").exists()
