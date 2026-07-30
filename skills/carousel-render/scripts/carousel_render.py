@@ -24,7 +24,7 @@ def output_dir(slides_json, env_dir, name):
     return base / name
 
 
-PREVIEW_CELL = 360
+PREVIEW_CELL = 460
 
 
 def preview_page(html_names, card_w, card_h, cols=3):
@@ -40,24 +40,27 @@ def preview_page(html_names, card_w, card_h, cols=3):
         cells.append(
             f'<figure><div class="рамка">'
             f'<iframe src="_html/{name}" scrolling="no"></iframe>'
-            f"</div><figcaption>{Path(name).stem}</figcaption></figure>"
+            f'</div><figcaption><a href="_html/{name}">{Path(name).stem}</a>'
+            "</figcaption></figure>"
         )
     return (
         "<!doctype html><html lang='ru'><head><meta charset='utf-8'>"
         "<title>Превью карусели</title><style>"
         "*{margin:0;padding:0;box-sizing:border-box}"
-        "body{background:#f2f2f4;padding:24px;font:14px -apple-system,sans-serif}"
+        "body{background:#17171b;color:#aaa;padding:24px;"
+        "font:14px -apple-system,sans-serif}"
         "h1{font-size:16px;padding-bottom:16px}"
         f".сетка{{display:grid;grid-template-columns:repeat({cols},{PREVIEW_CELL}px);gap:20px}}"
-        "figure{background:#fff;padding:8px;border-radius:8px}"
+        "figure{background:#222228;padding:8px;border-radius:8px}"
         f".рамка{{width:{PREVIEW_CELL}px;height:{round(card_h * scale)}px;"
         "overflow:hidden;border-radius:4px}"
         f"iframe{{width:{card_w}px;height:{card_h}px;border:0;"
         f"transform:scale({scale:.6f});transform-origin:0 0}}"
-        "figcaption{text-align:center;padding-top:8px;color:#666}"
+        "figcaption{text-align:center;padding-top:8px}"
+        "figcaption a{color:#8ab;text-decoration:none}"
         "</style></head><body>"
-        "<h1>Превью — живой HTML. Правь тему и перезапусти прогон, "
-        "либо потрогай вёрстку девтулзами.</h1>"
+        "<h1>Превью — живой HTML. Клик по номеру открывает карточку "
+        "в полном размере; девтулзами можно пощупать вёрстку.</h1>"
         "<div class='сетка'>" + "".join(cells) + "</div></body></html>"
     )
 

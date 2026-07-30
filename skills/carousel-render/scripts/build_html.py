@@ -155,11 +155,21 @@ def band_classes(binding, signature_visible):
     ])
 
 
+# Шеврон рисуется, а не набирается символом. Текстовый глиф «›» в Light-весе
+# выходит втрое тоньше нужного и сидит не по центру кружка: метрики шрифта не
+# рассчитаны на роль иконки. Вектор даёт точную толщину и центровку.
+CHEVRON_SVG = (
+    '<svg viewBox="0 0 24 24" aria-hidden="true">'
+    '<path d="M8.5 4.5 16 12l-7.5 7.5" fill="none" stroke="currentColor"'
+    ' stroke-width="4" stroke-linecap="butt" stroke-linejoin="miter"/></svg>'
+)
+
+
 def _badge_html(position):
     if position == "нет":
         return ""
     return (f'<div class="бейдж {position}">ЛИСТАЙ'
-            f'<span class="кружок">›</span></div>')
+            f'<span class="кружок">{CHEVRON_SVG}</span></div>')
 
 
 def _signature_html(binding, visible):
