@@ -78,8 +78,9 @@ def css_vars(data, sizes):
         lines.append(f"--{name.replace('_', '-')}: {value};")
     for name, spec in data["шрифты"]["роли"].items():
         lines.append(f"--{name.replace('_', '-')}-вес: {spec['вес']};")
+    # Подчёркивания → дефисы, как у цветов и весов: в CSS всё через дефис.
     for name, value in sizes.items():
-        lines.append(f"--{name}: {value}px;")
+        lines.append(f"--{name.replace('_', '-')}: {value}px;")
     return ":root {\n  " + "\n  ".join(lines) + "\n}"
 
 
@@ -133,6 +134,33 @@ def _cover_body(slide, data, base_dir):
     return "".join(parts), kind
 
 
+def _body_body(slide, data):
+    """Абзацы тела. Нить вешается только на последний блок."""
+    blocks = slide.get("блоки", [])
+    rendered = []
+    for i, text in enumerate(blocks):
+        html_text = markup.inline(text)
+        if slide.get("нить") and i == len(blocks) - 1:
+            html_text = markup.with_thread(html_text)
+        rendered.append(f'<div class="блок">{html_text}</div>')
+    return '<div class="содержимое">' + "".join(rendered) + "</div>"
+
+
+def _list_body(slide, data):
+    """Заголовок → подзаголовок-боль → пункты → подвал курсивом."""
+    parts = [f'<div class="заголовок">{markup.inline(slide.get("заголовок", ""))}</div>']
+    if slide.get("подзаголовок"):
+        parts.append(f'<div class="подзаголовок">{markup.inline(slide["подзаголовок"])}</div>')
+
+    items = "".join(f'<div class="пункт">{markup.inline(x)}</div>'
+                    for x in slide.get("пункты", []))
+    parts.append(f'<div class="пункты">{items}</div>')
+
+    if slide.get("подвал"):
+        parts.append(f'<div class="подвал">{markup.inline(slide["подвал"])}</div>')
+    return '<div class="содержимое">' + "".join(parts) + "</div>"
+
+
 def build(slide, data, platform, sizes, base_dir):
     """Собирает полный HTML-документ одной карточки."""
     layout = slide.get("лейаут")
@@ -147,8 +175,16 @@ def build(slide, data, platform, sizes, base_dir):
         classes = f"карточка {tone} обложка {kind if kind != 'текст' else ''}".strip()
         # На фото-обложке подпись гасится: автор уже на снимке.
         default_visible = kind != "фото"
+    elif layout == "тело":
+        body = _body_body(slide, data)
+        classes = f"карточка {tone} тело"
+        default_visible = True
+    elif layout == "тело-список":
+        body = _list_body(slide, data)
+        classes = f"карточка {tone} тело-список"
+        default_visible = True
     else:
-        raise ValueError(f"лейаут {layout} появится в следующих задачах")
+        raise ValueError(f"лейаут {layout} появится в следующей задаче")
 
     default = "показать" if default_visible else "скрыть"
     visible = slide.get("подпись", default) == "показать"

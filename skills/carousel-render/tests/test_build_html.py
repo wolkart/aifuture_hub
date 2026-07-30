@@ -94,3 +94,68 @@ def test_build_includes_measure_js(data, theme_dir):
 def test_build_rejects_unknown_layout(data, theme_dir):
     with pytest.raises(ValueError, match="лейаут"):
         build_html.build({"№": 1, "лейаут": "карусель-мечты"}, data, "LI", {}, theme_dir)
+
+
+def test_body_renders_each_block_as_paragraph(data, theme_dir):
+    slide = {"№": 2, "лейаут": "тело",
+             "блоки": ["Первый абзац.", "Второй абзац."]}
+    got = build_html.build(slide, data, "LI", {"тело": 60}, theme_dir)
+    assert got.count('class="блок"') == 2
+    assert "Первый абзац." in got and "Второй абзац." in got
+
+
+def test_body_bold_uses_accent_class(data, theme_dir):
+    slide = {"№": 2, "лейаут": "тело", "блоки": ["код и **замолчит**."]}
+    got = build_html.build(slide, data, "LI", {"тело": 60}, theme_dir)
+    assert '<b class="акцент">замолчит</b>' in got
+
+
+def test_body_thread_arrow_only_on_last_block(data, theme_dir):
+    slide = {"№": 2, "лейаут": "тело",
+             "блоки": ["Раз.", "Два.", "Первая её часть"], "нить": True}
+    got = build_html.build(slide, data, "LI", {"тело": 60}, theme_dir)
+    assert got.count('class="нить"') == 1
+    tail = got.split("Первая её часть")[1]
+    assert 'class="нить"' in tail.split("</div>")[0]
+
+
+def test_body_without_thread_has_no_arrow(data, theme_dir):
+    slide = {"№": 2, "лейаут": "тело", "блоки": ["Раз."]}
+    got = build_html.build(slide, data, "LI", {"тело": 60}, theme_dir)
+    assert 'class="нить"' not in got
+
+
+def test_body_is_light_card(data, theme_dir):
+    slide = {"№": 2, "лейаут": "тело", "блоки": ["Раз."]}
+    got = build_html.build(slide, data, "LI", {"тело": 60}, theme_dir)
+    assert "карточка светлая" in got
+
+
+def test_list_renders_title_subtitle_items_footer(data, theme_dir):
+    slide = {"№": 4, "лейаут": "тело-список",
+             "заголовок": "Разработка",
+             "подзаголовок": "Проект не разваливается на пятой правке.",
+             "пункты": ["**superpowers** — не бросишь на середине",
+                        "**context7** — код заводится с первого раза"],
+             "подвал": "→ Твой отдел разработки"}
+    got = build_html.build(slide, data, "IG", {"тело_список": 42}, theme_dir)
+    assert "Разработка" in got
+    assert "не разваливается" in got
+    assert got.count('class="пункт"') == 2
+    assert '<b class="акцент">superpowers</b>' in got
+    assert "Твой отдел разработки" in got
+    assert 'class="подвал"' in got
+
+
+def test_list_without_footer_omits_it(data, theme_dir):
+    slide = {"№": 4, "лейаут": "тело-список", "заголовок": "Разработка",
+             "пункты": ["**раз** — два"]}
+    got = build_html.build(slide, data, "IG", {"тело_список": 42}, theme_dir)
+    assert 'class="подвал"' not in got
+
+
+def test_list_uses_ig_badge_bottom_right(data, theme_dir):
+    slide = {"№": 4, "лейаут": "тело-список", "заголовок": "Р", "пункты": ["**а** — б"]}
+    got = build_html.build(slide, data, "IG", {"тело_список": 42}, theme_dir)
+    assert "бейдж низ-право" in got
+    assert "подпись низ-лево" in got

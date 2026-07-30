@@ -1,0 +1,21 @@
+/* body.css — тело: светлая карточка, абзацы Montserrat, блок по центру вертикали. */
+
+.тело .содержимое {
+  justify-content: center;
+  gap: 44px;
+}
+
+.тело .блок {
+  font-family: Montserrat, sans-serif;
+  font-weight: var(--текст-тела-вес);
+  font-size: var(--тело);
+  line-height: 1.28;
+  color: var(--текст-тела);
+}
+
+.тело .блок .акцент {
+  font-weight: var(--выделение-тела-вес);
+  color: inherit;
+}
+
+.тело .нить { letter-spacing: 0.05em; }
