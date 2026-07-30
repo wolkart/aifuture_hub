@@ -12,6 +12,7 @@ from contextlib import nullcontext
 from pathlib import Path
 
 import contact_sheet
+import envfile
 import fit
 import render
 import theme as theme_mod
@@ -137,6 +138,7 @@ def format_report(result):
 
 
 def main():
+    envfile.load()  # до разбора аргументов: дефолты берутся из окружения
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("slides_json")
     ap.add_argument("--theme", default=os.environ.get("THEME_PATH"))
