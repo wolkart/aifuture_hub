@@ -1,3 +1,6 @@
+import re
+import subprocess
+
 import pytest
 
 import render
@@ -83,3 +86,45 @@ def test_measure_reads_overflow_from_live_page(tmp_path):
     got = render.measure(html, 1080, 1350)
     assert got["overflow_px"] > 0
     assert got["line_height_px"] == 70
+
+
+@pytest.mark.integration
+def test_content_zone_reserves_binding_bands(theme_file, tmp_path):
+    """Зона содержимого не должна залезать под обвязку.
+
+    Полосы задаются паддингом карточки; если их убрать, текст уезжает под
+    подпись, а переполнение недосчитывается. Проверяем через фактическую
+    высоту зоны: 1350 минус верхняя и нижняя полосы.
+    """
+    import build_html
+    import theme as theme_mod
+
+    data = theme_mod.load(theme_file)
+    slide = {"№": 2, "лейаут": "тело", "блоки": ["Раз."]}
+    html = tmp_path / "band.html"
+    html.write_text(build_html.build(slide, data, "LI", {"тело": 60}, tmp_path),
+                    encoding="utf-8")
+
+    dom = subprocess.run(render.chrome_cmd(html, "dom", 1080, 1350, 1, None),
+                         capture_output=True, text=True, check=True).stdout
+    height = int(re.search(r'data-content-height="(\d+)"', dom).group(1))
+    assert height == 1350 - 168 - 176
+
+
+@pytest.mark.integration
+def test_overcrowded_list_is_reported_as_overflow(theme_file, tmp_path):
+    """Шесть пунктов на крупной ступени не влезают — это должно быть видно."""
+    import build_html
+    import theme as theme_mod
+
+    data = theme_mod.load(theme_file)
+    slide = {"№": 4, "лейаут": "тело-список",
+             "заголовок": "Разработка",
+             "подзаголовок": "Проект не разваливается на пятой правке.",
+             "пункты": [f"**инструмент-{i}** — довольно длинное пояснение, "
+                        f"которое занимает две строки на карточке" for i in range(6)],
+             "подвал": "→ Твой отдел разработки"}
+    html = tmp_path / "list.html"
+    html.write_text(build_html.build(slide, data, "IG", {"тело_список": 42}, tmp_path),
+                    encoding="utf-8")
+    assert render.measure(html, 1080, 1350)["overflow_px"] > 0

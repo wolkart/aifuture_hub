@@ -25,6 +25,31 @@ CSS_BY_LAYOUT = {"обложка": "cover.css", "тело": "body.css",
 
 DARK_LAYOUTS = {"обложка", "CTA"}
 
+# Какие кегли обязан получить каждый лейаут. Отсутствие ключа — не мелочь:
+# CSS с неопределённым var() тихо падает на дефолтные 16px, и карточка
+# выглядит «сломанной вёрсткой», а не ошибкой. Поэтому проверяем явно.
+SIZE_KEYS = {
+    "обложка": ("заголовок", "подзаголовок"),
+    "тело": ("тело",),
+    "тело-список": ("тело_список",),
+    "CTA": ("cta",),
+}
+
+
+def required_sizes(slide):
+    """Какие кегли обязательны именно для этого слайда.
+
+    У обложки подзаголовочный кегль нужен только если есть что им набрать:
+    подзаголовок, нижняя строка или фото-вид (там им набран сам заголовок).
+    """
+    layout = slide.get("лейаут")
+    if layout != "обложка":
+        return SIZE_KEYS[layout]
+    keys = ["заголовок"]
+    if slide.get("подзаголовок") or slide.get("низ") or slide.get("вид") == "фото":
+        keys.append("подзаголовок")
+    return tuple(keys)
+
 MEASURE_JS = """
 <script>
   window.addEventListener('load', function () {
@@ -35,6 +60,7 @@ MEASURE_JS = """
     var lh = probe ? parseFloat(getComputedStyle(probe).lineHeight) || 0 : 0;
     document.body.dataset.overflow = String(Math.round(over));
     document.body.dataset.lineHeight = String(Math.round(lh));
+    document.body.dataset.contentHeight = String(Math.round(box.clientHeight));
   });
 </script>
 """
@@ -161,11 +187,23 @@ def _list_body(slide, data):
     return '<div class="содержимое">' + "".join(parts) + "</div>"
 
 
+def _cta_body(slide, data):
+    """Текст призыва. Подпись рисуется отдельно, обвязкой."""
+    blocks = "".join(f'<div class="блок">{markup.inline(x)}</div>'
+                     for x in slide.get("блоки", []))
+    return '<div class="содержимое">' + blocks + "</div>"
+
+
 def build(slide, data, platform, sizes, base_dir):
     """Собирает полный HTML-документ одной карточки."""
     layout = slide.get("лейаут")
     if layout not in CSS_BY_LAYOUT:
         raise ValueError(f"неизвестный лейаут: {layout}")
+
+    missing = [k for k in required_sizes(slide) if k not in sizes]
+    if missing:
+        raise ValueError(f"лейаут {layout}: не переданы кегли {', '.join(missing)} — "
+                         f"без них CSS молча свалится на 16px")
 
     binding = theme_mod.binding(data, platform, layout)
     tone = "тёмная" if layout in DARK_LAYOUTS else "светлая"
@@ -183,8 +221,12 @@ def build(slide, data, platform, sizes, base_dir):
         body = _list_body(slide, data)
         classes = f"карточка {tone} тело-список"
         default_visible = True
+    elif layout == "CTA":
+        body = _cta_body(slide, data)
+        classes = f"карточка {tone} CTA"
+        default_visible = True
     else:
-        raise ValueError(f"лейаут {layout} появится в следующей задаче")
+        raise ValueError(f"неизвестный лейаут: {layout}")
 
     default = "показать" if default_visible else "скрыть"
     visible = slide.get("подпись", default) == "показать"
@@ -212,8 +254,12 @@ def main():
     spec = json.loads(Path(args.slides_json).read_text(encoding="utf-8"))
     data = theme_mod.load(args.theme)
     slide = next(s for s in spec["слайды"] if s["№"] == args.slide)
-    sizes = {"заголовок": theme_mod.steps(data, "обложка_заголовок")[0],
-             "подзаголовок": theme_mod.steps(data, "обложка_подзаголовок")[0]}
+    # Первая (самая крупная) ступень под лейаут слайда. Подбор ступени по
+    # объёму текста — работа fit.py, тут только отладочный прогон.
+    step_key = {"заголовок": "обложка_заголовок", "подзаголовок": "обложка_подзаголовок",
+                "тело": "тело", "тело_список": "тело_список", "cta": "cta"}
+    sizes = {name: theme_mod.steps(data, step_key[name])[0]
+             for name in SIZE_KEYS[slide["лейаут"]]}
     html_text = build(slide, data, spec["meta"]["площадка"], sizes,
                       Path(args.slides_json).parent)
     Path(args.out).write_text(html_text, encoding="utf-8")

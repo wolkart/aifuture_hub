@@ -159,3 +159,61 @@ def test_list_uses_ig_badge_bottom_right(data, theme_dir):
     got = build_html.build(slide, data, "IG", {"тело_список": 42}, theme_dir)
     assert "бейдж низ-право" in got
     assert "подпись низ-лево" in got
+
+
+def test_cta_is_dark_card(data, theme_dir):
+    slide = {"№": 7, "лейаут": "CTA", "блоки": ["Подписывайся."]}
+    got = build_html.build(slide, data, "LI", {"cta": 50}, theme_dir)
+    assert "карточка тёмная" in got
+
+
+def test_cta_has_no_badge(data, theme_dir):
+    """Проверяем отсутствие элемента, а не слова: «ЛИСТАЙ» есть в комментарии CSS."""
+    slide = {"№": 7, "лейаут": "CTA", "блоки": ["Подписывайся."]}
+    got = build_html.build(slide, data, "LI", {"cta": 50}, theme_dir)
+    assert 'class="бейдж' not in got
+    assert ">ЛИСТАЙ" not in got
+
+
+def test_cta_signature_sits_on_top(data, theme_dir):
+    """На CTA подпись крупная и сверху, а не мелкая внизу."""
+    slide = {"№": 7, "лейаут": "CTA", "блоки": ["Подписывайся."]}
+    got = build_html.build(slide, data, "LI", {"cta": 50}, theme_dir)
+    assert "подпись верх-центр" in got
+    assert "Artem Volkov" in got
+
+
+def test_cta_renders_all_blocks(data, theme_dir):
+    slide = {"№": 7, "лейаут": "CTA",
+             "блоки": ["Хочешь разбираться в AI — подписывайся.",
+                       "Разбираю по-честному."]}
+    got = build_html.build(slide, data, "LI", {"cta": 50}, theme_dir)
+    assert got.count('class="блок"') == 2
+
+
+def test_all_layouts_build(data, theme_dir):
+    """Словарь лейаутов закрыт и целиком поддержан."""
+    import theme as theme_mod
+    samples = {
+        "обложка": {"заголовок": "Т"},
+        "тело": {"блоки": ["Т"]},
+        "тело-список": {"заголовок": "Т", "пункты": ["**а** — б"]},
+        "CTA": {"блоки": ["Т"]},
+    }
+    for layout in theme_mod.LAYOUTS:
+        slide = {"№": 1, "лейаут": layout, **samples[layout]}
+        sizes = {k: 42 for k in build_html.SIZE_KEYS[layout]}
+        got = build_html.build(slide, data, "LI", sizes, theme_dir)
+        assert got.startswith("<!doctype")
+
+
+def test_size_keys_cover_all_layouts():
+    import theme as theme_mod
+    assert set(build_html.SIZE_KEYS) == set(theme_mod.LAYOUTS)
+
+
+def test_build_rejects_missing_size(data, theme_dir):
+    """Неопределённый var() в CSS даёт 16px молча — ловим это как ошибку."""
+    slide = {"№": 2, "лейаут": "тело", "блоки": ["Раз."]}
+    with pytest.raises(ValueError, match="16px"):
+        build_html.build(slide, data, "LI", {}, theme_dir)

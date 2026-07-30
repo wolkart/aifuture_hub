@@ -9,11 +9,19 @@ html, body {
   overflow: hidden;
 }
 
+/* Полосы под обвязку. Бейдж и подпись позиционируются абсолютно, поэтому
+   их место обязано быть зарезервировано паддингом карточки — иначе текст
+   уезжает под подпись. Важно и для замера: зона содержимого должна
+   заканчиваться там же, где начинается обвязка, иначе переполнение
+   недосчитывается. */
 .карточка {
+  --полоса-верх: 168px;
+  --полоса-низ: 176px;
+
   position: relative;
   width: var(--ширина);
   height: var(--высота);
-  padding: 80px 72px;
+  padding: var(--полоса-верх) 72px var(--полоса-низ);
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -49,7 +57,10 @@ html, body {
   font-size: 34px;
   letter-spacing: 0.08em;
 }
-.бейдж.верх-центр { top: 56px; left: 50%; transform: translateX(-50%); }
+/* Центрирование растяжкой, а не через left:50% + transform: при left:50%
+   элементу доступна лишь правая половина карточки, и длинная подпись
+   переносится на вторую строку. */
+.бейдж.верх-центр { top: 56px; left: 0; right: 0; justify-content: center; }
 .бейдж.низ-право  { right: 72px; bottom: 64px; }
 .бейдж.нет        { display: none; }
 
@@ -72,9 +83,9 @@ html, body {
   gap: 22px;
   font-family: Montserrat, sans-serif;
 }
-.подпись.низ-центр  { bottom: 60px; left: 50%; transform: translateX(-50%); }
+.подпись.низ-центр  { bottom: 60px; left: 0; right: 0; justify-content: center; }
 .подпись.низ-лево   { bottom: 60px; left: 72px; }
-.подпись.верх-центр { top: 150px; left: 50%; transform: translateX(-50%); }
+.подпись.верх-центр { top: 150px; left: 0; right: 0; justify-content: center; }
 .подпись.нет        { display: none; }
 
 .подпись img {
@@ -84,6 +95,7 @@ html, body {
   font-weight: var(--подпись-имя-вес);
   font-size: 44px;
   line-height: 1.1;
+  white-space: nowrap;
 }
 .подпись .должность {
   font-weight: var(--подпись-должность-вес);
