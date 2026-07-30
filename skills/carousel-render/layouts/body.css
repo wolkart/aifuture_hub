@@ -2,14 +2,15 @@
 
 .тело .содержимое {
   justify-content: center;
-  gap: 44px;
+  gap: var(--отступ-абзаца, 44px);
 }
 
 .тело .блок {
   font-family: Montserrat, sans-serif;
   font-weight: var(--текст-тела-вес);
   font-size: var(--тело);
-  line-height: 1.28;
+  line-height: var(--интерлиньяж-тела, 1.28);
+  letter-spacing: var(--трекинг-тела, 0);
   color: var(--текст-тела);
 }
 

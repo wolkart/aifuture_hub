@@ -15,16 +15,21 @@
   letter-spacing: var(--трекинг-обложки, -0.05em);
   text-transform: uppercase;
   color: var(--заголовок-обложки);
+
+  /* CSS кладёт половину лидинга НАД первой строкой, Figma — нет. Гасим её,
+     иначе весь блок съезжает вниз на эту половину. */
+  margin-top: calc((1 - var(--интерлиньяж-обложки, 0.95)) * var(--заголовок) / 2);
 }
 
 .обложка .подзаголовок {
   font-family: Oswald, sans-serif;
   font-weight: var(--подзаголовок-обложки-вес);
   font-size: var(--подзаголовок);
-  line-height: 1.15;
+  line-height: var(--интерлиньяж-подзаголовка, 1.15);
+  letter-spacing: var(--трекинг-подзаголовка, 0);
   text-transform: uppercase;
   color: var(--текст-на-тёмном);
-  margin-top: 48px;
+  margin-top: var(--отступ-подзаголовка, 48px);
 }
 
 .обложка .акцент { color: var(--акцент); font-weight: inherit; }
@@ -52,9 +57,13 @@
   object-fit: cover;
   z-index: 0;
 }
+/* Затемнение с двух сторон: снизу — под текст, сверху — под бейдж «ЛИСТАЙ».
+   Бейдж светло-серый, и на светлом небе без подложки он просто исчезает. */
 .обложка.фото .затемнение {
   position: absolute; inset: 0; z-index: 1;
-  background: linear-gradient(to bottom, transparent 40%, rgba(0,0,0,0.72) 88%);
+  background:
+    linear-gradient(to bottom, rgba(0,0,0,0.45) 0%, transparent 16%),
+    linear-gradient(to bottom, transparent 40%, rgba(0,0,0,0.72) 88%);
 }
 .обложка.фото .содержимое {
   z-index: 2;

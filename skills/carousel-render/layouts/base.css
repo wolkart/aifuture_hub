@@ -47,8 +47,11 @@ html, body {
 }
 
 /* — Обвязка: бейдж «ЛИСТАЙ» — */
+/* z-index обязателен: в разметке обвязка идёт раньше фото-фона, и без него
+   фотография на обложке закрашивает бейдж и подпись. */
 .бейдж {
   position: absolute;
+  z-index: 3;
   display: flex;
   align-items: center;
   gap: 18px;
@@ -78,6 +81,7 @@ html, body {
 /* — Обвязка: подпись с аватаркой — */
 .подпись {
   position: absolute;
+  z-index: 3;
   display: flex;
   align-items: center;
   gap: 22px;

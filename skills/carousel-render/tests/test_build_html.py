@@ -265,3 +265,12 @@ def test_decor_cover_falls_back_to_img_for_raster(data, theme_dir):
     slide = {"№": 1, "лейаут": "обложка", "вид": "декор", "заголовок": "Тест"}
     got = build_html.build(slide, data, "IG", {"заголовок": 150}, theme_dir)
     assert 'class="спарк" src="data:image/png' in got
+
+
+def test_binding_is_layered_above_photo_background():
+    """Обвязка в разметке идёт раньше фото-фона — без z-index фото её закрасит."""
+    css = build_html.layout_css("обложка")
+    badge = css.split(".бейдж {")[1].split("}")[0]
+    signature = css.split(".подпись {")[1].split("}")[0]
+    assert "z-index" in badge
+    assert "z-index" in signature
