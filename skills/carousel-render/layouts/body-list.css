@@ -1,0 +1,53 @@
+/* body-list.css — тело-список: заголовок, подзаголовок-боль, пункты, подвал курсивом.
+   Отдельный лейаут, а не абзацный: свой ритм отступов и свой подвал. */
+
+.тело-список .содержимое {
+  justify-content: flex-start;
+  padding-top: 40px;
+}
+
+.тело-список .заголовок {
+  font-family: Montserrat, sans-serif;
+  font-weight: var(--заголовок-списка-вес);
+  font-size: calc(var(--тело-список) * 1.55);
+  line-height: 1.1;
+  color: var(--текст-тела);
+}
+
+.тело-список .подзаголовок {
+  font-family: Montserrat, sans-serif;
+  font-weight: var(--выделение-тела-вес);
+  font-size: calc(var(--тело-список) * 1.18);
+  line-height: 1.2;
+  color: var(--текст-тела);
+  margin-top: 10px;
+}
+
+.тело-список .пункты {
+  margin-top: 56px;
+  display: flex;
+  flex-direction: column;
+  gap: 30px;
+}
+
+.тело-список .пункт {
+  font-family: Montserrat, sans-serif;
+  font-weight: var(--текст-тела-вес);
+  font-size: var(--тело-список);
+  line-height: 1.26;
+  color: var(--текст-тела);
+}
+
+.тело-список .пункт .акцент {
+  font-weight: var(--заголовок-списка-вес);
+  color: inherit;
+}
+
+.тело-список .подвал {
+  margin-top: 48px;
+  font-family: Montserrat, sans-serif;
+  font-style: italic;
+  font-weight: var(--выделение-тела-вес);
+  font-size: var(--тело-список);
+  color: var(--текст-тела);
+}

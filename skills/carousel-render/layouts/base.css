@@ -1,0 +1,115 @@
+/* base.css — общее для всех карточек: сброс, размер, фоны, обвязка.
+   Значения приходят из темы через CSS-переменные — тут только композиция. */
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+html, body {
+  width: var(--ширина);
+  height: var(--высота);
+  overflow: hidden;
+}
+
+/* Полосы под обвязку. Бейдж и подпись позиционируются абсолютно, поэтому
+   их место обязано быть зарезервировано паддингом карточки — иначе текст
+   уезжает под подпись. Важно и для замера: зона содержимого должна
+   заканчиваться там же, где начинается обвязка, иначе переполнение
+   недосчитывается. */
+.карточка {
+  --полоса-верх: 168px;
+  --полоса-низ: 176px;
+
+  position: relative;
+  width: var(--ширина);
+  height: var(--высота);
+  padding: var(--полоса-верх) 72px var(--полоса-низ);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* Полоса нужна только там, где обвязка реально стоит. Убрал бейдж вниз —
+   верх освободился, и содержимое получает эту высоту, а не резервирует зря. */
+.карточка.верх-свободен { --полоса-верх: 88px; }
+.карточка.низ-свободен  { --полоса-низ: 88px; }
+
+.карточка.тёмная {
+  background: radial-gradient(circle at 50% 40%, var(--фон-тёмный-1), var(--фон-тёмный-2));
+  color: var(--текст-на-тёмном);
+}
+
+.карточка.светлая {
+  background: radial-gradient(circle at 50% 40%, var(--фон-светлый-1), var(--фон-светлый-2));
+  color: var(--текст-тела);
+}
+
+/* Зона содержимого: всё, что меряется на переполнение. */
+.содержимое {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-height: 0;
+}
+
+/* — Обвязка: бейдж «ЛИСТАЙ» — */
+/* z-index обязателен: в разметке обвязка идёт раньше фото-фона, и без него
+   фотография на обложке закрашивает бейдж и подпись. */
+.бейдж {
+  position: absolute;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  font-family: Montserrat, sans-serif;
+  font-weight: var(--бейдж-вес);
+  font-size: 34px;
+  letter-spacing: 0.08em;
+}
+/* Центрирование растяжкой, а не через left:50% + transform: при left:50%
+   элементу доступна лишь правая половина карточки, и длинная подпись
+   переносится на вторую строку. */
+.бейдж.верх-центр { top: 56px; left: 0; right: 0; justify-content: center; }
+.бейдж.низ-право  { right: 72px; bottom: 64px; }
+.бейдж.нет        { display: none; }
+
+.бейдж .кружок {
+  width: 62px; height: 62px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 30px; line-height: 1;
+}
+.тёмная .бейдж            { color: var(--бейдж-на-тёмном); }
+.тёмная .бейдж .кружок    { background: var(--бейдж-на-тёмном); color: #111; }
+.светлая .бейдж           { color: var(--бейдж-кружок-на-светлом); }
+.светлая .бейдж .кружок   { background: var(--бейдж-кружок-на-светлом);
+                            color: var(--бейдж-текст-на-светлом); }
+
+/* — Обвязка: подпись с аватаркой — */
+.подпись {
+  position: absolute;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  gap: 22px;
+  font-family: Montserrat, sans-serif;
+}
+.подпись.низ-центр  { bottom: 60px; left: 0; right: 0; justify-content: center; }
+.подпись.низ-лево   { bottom: 60px; left: 72px; }
+.подпись.верх-центр { top: 150px; left: 0; right: 0; justify-content: center; }
+.подпись.нет        { display: none; }
+
+.подпись img {
+  width: 78px; height: 78px; border-radius: 50%; object-fit: cover;
+}
+.подпись .имя {
+  font-weight: var(--подпись-имя-вес);
+  font-size: 44px;
+  line-height: 1.1;
+  white-space: nowrap;
+}
+.подпись .должность {
+  font-weight: var(--подпись-должность-вес);
+  font-size: 26px;
+  color: var(--должность);
+}
+
+.нить { white-space: nowrap; }

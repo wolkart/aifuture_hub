@@ -20,6 +20,10 @@ __pycache__/
 *.pyc
 .venv/
 venv/
+.pytest_cache/
+
+# Локальные темы carousel-render (личный стиль не уходит в паблик)
+skills/carousel-render/themes/local*
 
 # Временные файлы и архивы
 *.tmp

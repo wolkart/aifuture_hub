@@ -1,0 +1,85 @@
+/* cover.css — обложка: крупный Oswald, три вида: текст, декор, фото на весь кадр. */
+
+.обложка .содержимое {
+  justify-content: center;
+  text-align: center;
+  position: relative;
+  z-index: 1;
+}
+
+.обложка .заголовок {
+  font-family: Oswald, sans-serif;
+  font-weight: var(--заголовок-обложки-вес);
+  font-size: var(--заголовок);
+  line-height: var(--интерлиньяж-обложки, 0.95);
+  letter-spacing: var(--трекинг-обложки, -0.05em);
+  text-transform: uppercase;
+  color: var(--заголовок-обложки);
+
+  /* CSS кладёт половину лидинга НАД первой строкой, Figma — нет. Гасим её,
+     иначе весь блок съезжает вниз на эту половину. */
+  margin-top: calc((1 - var(--интерлиньяж-обложки, 0.95)) * var(--заголовок) / 2);
+}
+
+.обложка .подзаголовок {
+  font-family: Oswald, sans-serif;
+  font-weight: var(--подзаголовок-обложки-вес);
+  font-size: var(--подзаголовок);
+  line-height: var(--интерлиньяж-подзаголовка, 1.15);
+  letter-spacing: var(--трекинг-подзаголовка, 0);
+  text-transform: uppercase;
+  color: var(--текст-на-тёмном);
+  margin-top: var(--отступ-подзаголовка, 48px);
+}
+
+.обложка .акцент { color: var(--акцент); font-weight: inherit; }
+
+/* Вид «декор»: значок в свободном верхнем углу, под текстом по слою.
+   SVG вставлен в разметку, поэтому `color` здесь красит его через
+   currentColor — второй файл под светлый фон не нужен. */
+.обложка .спарк {
+  position: absolute;
+  top: var(--декор-верх, 90px);
+  right: var(--декор-право, 60px);
+  width: var(--декор-размер, 340px);
+  z-index: 0;
+  color: var(--декор-цвет, var(--акцент));
+  opacity: var(--декор-прозрачность, 0.55);
+}
+.обложка .спарк svg { width: 100%; height: auto; display: block; }
+
+/* Вид «фото»: снимок на весь кадр, текст внизу поверх затемнения.
+   Полосы обнуляются: фон должен идти под обрез, отступы задаёт содержимое. */
+.обложка.фото { padding: 0; }
+.обложка.фото .фон {
+  position: absolute; inset: 0;
+  width: 100%; height: 100%;
+  object-fit: cover;
+  z-index: 0;
+}
+/* Затемнение с двух сторон: снизу — под текст, сверху — под бейдж «ЛИСТАЙ».
+   Бейдж светло-серый, и на светлом небе без подложки он просто исчезает. */
+.обложка.фото .затемнение {
+  position: absolute; inset: 0; z-index: 1;
+  background:
+    linear-gradient(to bottom, rgba(0,0,0,0.45) 0%, transparent 16%),
+    linear-gradient(to bottom, transparent 40%, rgba(0,0,0,0.72) 88%);
+}
+.обложка.фото .содержимое {
+  z-index: 2;
+  justify-content: flex-end;
+  padding: 80px 72px 150px;
+}
+.обложка.фото .заголовок {
+  color: var(--текст-на-тёмном);
+  font-size: var(--подзаголовок);
+  line-height: 1.12;
+}
+.обложка.фото .низ {
+  font-family: Oswald, sans-serif;
+  font-size: 32px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  margin-top: 44px;
+  opacity: 0.9;
+}
