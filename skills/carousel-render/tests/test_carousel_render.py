@@ -107,7 +107,7 @@ def test_preview_page_embeds_every_slide():
 
 def test_preview_page_scales_cards_to_cell():
     html = carousel_render.preview_page(["01.html"], 1080, 1350)
-    assert "transform:scale(0.333333)" in html
+    assert f"transform:scale({460 / 1080:.6f})" in html
     assert "width:1080px;height:1350px" in html
 
 

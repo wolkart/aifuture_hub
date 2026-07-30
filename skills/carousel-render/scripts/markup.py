@@ -9,7 +9,18 @@ import html
 import re
 
 ACCENT_RE = re.compile(r"\*\*(.+?)\*\*", re.DOTALL)
-ARROW = '<span class="нить">⇢</span>'
+
+# Стрелка-нить рисуется, а не набирается символом. Глиф «⇢» в Montserrat даёт
+# залитый треугольник — тяжелее и короче открытой стрелки штрихом, которую
+# ставит автор. Вектор в em-единицах масштабируется вместе с кеглем текста.
+ARROW_SVG = (
+    '<svg viewBox="0 0 46 16" aria-hidden="true">'
+    '<g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="butt">'
+    '<path d="M1 8h6M11 8h6M21 8h9"/>'
+    '<path d="M32.5 2 38.5 8l-6 6" stroke-linejoin="miter"/>'
+    "</g></svg>"
+)
+ARROW = f'<span class="нить">{ARROW_SVG}</span>'
 
 
 def escape(text):

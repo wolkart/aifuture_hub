@@ -297,3 +297,20 @@ def test_band_classes_lands_in_markup(data, theme_dir):
     slide = {"№": 4, "лейаут": "тело-список", "заголовок": "Р", "пункты": ["**а** — б"]}
     got = build_html.build(slide, data, "IG", {"тело_список": 42}, theme_dir)
     assert "верх-занят" in got or "верх-свободен" in got
+
+
+def test_badge_chevron_is_vector_not_glyph():
+    """Текстовый «›» в Light-весе выходит тонким и не по центру — нужен вектор."""
+    got = build_html._badge_html("верх-центр")
+    assert "<svg" in got
+    assert "›" not in got
+    assert "stroke-width" in got
+
+
+def test_badge_chevron_inherits_colour():
+    """Кружок бывает светлым и тёмным — шеврон должен красться от родителя."""
+    assert 'stroke="currentColor"' in build_html.CHEVRON_SVG
+
+
+def test_badge_hidden_has_no_chevron():
+    assert build_html._badge_html("нет") == ""

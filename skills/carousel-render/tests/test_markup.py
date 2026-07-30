@@ -56,3 +56,15 @@ def test_with_thread_appends_arrow():
 def test_arrow_is_element_not_character():
     """Стрелка — элемент со своим классом, иначе её не стилизовать."""
     assert 'class="нить"' in markup.ARROW
+
+
+def test_arrow_is_vector_not_glyph():
+    """Глиф «⇢» даёт залитый треугольник вместо открытой стрелки автора."""
+    assert "<svg" in markup.ARROW
+    assert "⇢" not in markup.ARROW
+    assert 'stroke="currentColor"' in markup.ARROW_SVG
+
+
+def test_arrow_head_is_open_not_filled():
+    """Голова стрелки — штрих, а не заливка."""
+    assert 'fill="none"' in markup.ARROW_SVG
