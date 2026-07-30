@@ -26,6 +26,7 @@ STEP_KEY = {
     "подзаголовок": "обложка_подзаголовок",
     "тело": "тело",
     "тело_список": "тело_список",
+    "промпт": "промпт",
     "cta": "cta",
 }
 
@@ -71,11 +72,16 @@ def fit_slide(slide, data, platform, base_dir, tmp_dir):
                              encoding="utf-8")
 
         measured = render.measure(html_path, fmt["ширина"], fmt["высота"])
+        # Не влезло — это про обе стороны. По высоте текст просто не помещается,
+        # по ширине длинное слово уезжает за край и обрезается молча; вертикаль
+        # при этом в норме, поэтому проверять надо отдельно.
+        over_x = measured.get("overflow_x_px", 0)
         result = {"html": html_path, "ступень": index,
                   "переполнение": measured["overflow_px"],
+                  "переполнение_ширина": over_x,
                   "недобор_символов": shortfall_chars(measured["overflow_px"],
                                                       measured["line_height_px"])}
-        if measured["overflow_px"] <= 0:
+        if measured["overflow_px"] <= 0 and over_x <= 0:
             return result
     return result
 

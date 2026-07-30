@@ -100,3 +100,32 @@ def test_fit_slide_html_reflects_chosen_step(data, theme_dir, tmp_path, monkeypa
     got = fit.fit_slide(slide, data, "LI", theme_dir, tmp_path)
     smallest = theme.steps(data, "тело")[-1]
     assert f"--тело: {smallest}px" in got["html"].read_text(encoding="utf-8")
+
+
+def test_ширина_тоже_считается_непопаданием(data, theme_dir, tmp_path, monkeypatch):
+    """Длинное слово уезжает за правый край, а по высоте всё «влезает».
+    Кегль обязан опуститься — иначе карточка молча обрежется."""
+    calls = {"n": 0}
+
+    def fake_measure(*a, **k):
+        calls["n"] += 1
+        return {"overflow_px": 0, "line_height_px": 70,
+                "overflow_x_px": 0 if calls["n"] >= 2 else 120}
+
+    monkeypatch.setattr(fit.render, "measure", fake_measure)
+    slide = {"№": 1, "лейаут": "обложка", "заголовок": "БОЛЬШИНСТВО"}
+    got = fit.fit_slide(slide, data, "IG", theme_dir, tmp_path)
+    assert got["ступень"] == 1
+    assert got["переполнение_ширина"] == 0
+
+
+def test_ширина_докладывается_когда_не_помогла_ни_одна_ступень(
+        data, theme_dir, tmp_path, monkeypatch):
+    """Автор должен узнать про обрезку, а не увидеть её на опубликованной карточке."""
+    monkeypatch.setattr(fit.render, "measure",
+                        lambda *a, **k: {"overflow_px": 0, "line_height_px": 70,
+                                         "overflow_x_px": 88})
+    slide = {"№": 1, "лейаут": "обложка", "заголовок": "НЕПЕРЕНОСИМОЕСЛОВО"}
+    got = fit.fit_slide(slide, data, "IG", theme_dir, tmp_path)
+    assert got["переполнение_ширина"] == 88
+    assert got["переполнение"] == 0

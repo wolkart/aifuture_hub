@@ -38,13 +38,22 @@ def test_chrome_cmd_uses_file_url(tmp_path):
 
 
 def test_parse_overflow_reads_dataset():
-    dom = '<html><body data-overflow="42" data-line-height="70">x</body></html>'
-    assert render.parse_overflow(dom) == {"overflow_px": 42, "line_height_px": 70}
+    dom = ('<html><body data-overflow="42" data-overflow-x="5" '
+           'data-line-height="70">x</body></html>')
+    assert render.parse_overflow(dom) == {
+        "overflow_px": 42, "overflow_x_px": 5, "line_height_px": 70}
+
+
+def test_parse_overflow_not_confused_by_width_attribute():
+    """data-overflow-x не должен подменять вертикальный замер."""
+    dom = '<body data-overflow-x="99" data-overflow="4" data-line-height="70">'
+    assert render.parse_overflow(dom)["overflow_px"] == 4
+    assert render.parse_overflow(dom)["overflow_x_px"] == 99
 
 
 def test_parse_overflow_defaults_to_zero():
     assert render.parse_overflow("<html><body>нет данных</body></html>") == {
-        "overflow_px": 0, "line_height_px": 0}
+        "overflow_px": 0, "overflow_x_px": 0, "line_height_px": 0}
 
 
 def test_parse_overflow_survives_attribute_order():

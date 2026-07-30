@@ -22,7 +22,8 @@ MIME = {".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
         ".ttf": "font/ttf", ".otf": "font/otf", ".woff2": "font/woff2"}
 
 CSS_BY_LAYOUT = {"обложка": "cover.css", "тело": "body.css",
-                 "тело-список": "body-list.css", "CTA": "cta.css"}
+                 "тело-список": "body-list.css", "промпт": "prompt.css",
+                 "CTA": "cta.css"}
 
 DARK_LAYOUTS = {"обложка", "CTA"}
 
@@ -33,6 +34,7 @@ SIZE_KEYS = {
     "обложка": ("заголовок", "подзаголовок"),
     "тело": ("тело",),
     "тело-список": ("тело_список",),
+    "промпт": ("промпт",),
     "CTA": ("cta",),
 }
 
@@ -57,9 +59,13 @@ MEASURE_JS = """
     var box = document.querySelector('.содержимое');
     if (!box) { return; }
     var over = Math.max(0, box.scrollHeight - box.clientHeight);
+    // Ширину меряем отдельно: длинное слово не переносится и уезжает за край
+    // молча — по вертикали при этом всё «влезает».
+    var overX = Math.max(0, box.scrollWidth - box.clientWidth);
     var probe = box.querySelector('*');
     var lh = probe ? parseFloat(getComputedStyle(probe).lineHeight) || 0 : 0;
     document.body.dataset.overflow = String(Math.round(over));
+    document.body.dataset.overflowX = String(Math.round(overX));
     document.body.dataset.lineHeight = String(Math.round(lh));
     document.body.dataset.contentHeight = String(Math.round(box.clientHeight));
   });
@@ -104,8 +110,25 @@ def font_css(data):
     return "\n".join(blocks)
 
 
-def css_vars(data, sizes):
-    """Тема + выбранные кегли → блок :root с переменными."""
+# Знаки, которые поднимаются над капслоком: краткая и умляут. При тесном
+# интерлиньяже строка с ними почти упирается в строку сверху — «Й» задевает
+# букву над собой. Лечим добавкой интерлиньяжа всему заголовку: неровные
+# просветы между строками выглядят хуже, чем чуть более просторный блок.
+ВЫСОКИЕ_ЗНАКИ = "ЙЁ"
+ДОБАВКА_ИНТЕРЛИНЬЯЖА = 0.14
+
+
+def нужен_воздух(заголовок):
+    """Есть ли в заголовке знак, которому тесно при базовом интерлиньяже."""
+    return any(ch in ВЫСОКИЕ_ЗНАКИ for ch in (заголовок or "").upper())
+
+
+def css_vars(data, sizes, интерлиньяж_обложки=None):
+    """Тема + выбранные кегли → блок :root с переменными.
+
+    `интерлиньяж_обложки` перебивает значение темы — это делает `build`,
+    когда в заголовке есть высокий знак.
+    """
     fmt = data["формат"]
     lines = [
         f"--ширина: {fmt['ширина']}px;",
@@ -126,6 +149,8 @@ def css_vars(data, sizes):
     # Необязательный блок, у CSS на каждый ключ свой дефолт.
     for name, value in data.get("типографика", {}).items():
         lines.append(f"--{name.replace('_', '-')}: {value};")
+    if интерлиньяж_обложки is not None:
+        lines.append(f"--интерлиньяж-обложки: {интерлиньяж_обложки};")
     return ":root {\n  " + "\n  ".join(lines) + "\n}"
 
 
@@ -237,6 +262,20 @@ def _list_body(slide, data):
     return '<div class="содержимое">' + "".join(parts) + "</div>"
 
 
+def _prompt_body(slide, data):
+    """Номер → стадия → строка-выгода → блок с текстом промпта."""
+    parts = []
+    if slide.get("номер"):
+        parts.append(f'<div class="номер">{markup.escape(str(slide["номер"]))}</div>')
+    parts.append(f'<div class="заголовок">{markup.inline(slide.get("заголовок", ""))}</div>')
+    if slide.get("подзаголовок"):
+        parts.append(f'<div class="подзаголовок">{markup.inline(slide["подзаголовок"])}</div>')
+    parts.append('<div class="блок-промпта"><div class="текст">'
+                 + markup.prompt_text(slide.get("промпт", ""))
+                 + "</div></div>")
+    return '<div class="содержимое">' + "".join(parts) + "</div>"
+
+
 def _cta_body(slide, data):
     """Текст призыва. Подпись рисуется отдельно, обвязкой."""
     blocks = "".join(f'<div class="блок">{markup.inline(x)}</div>'
@@ -271,6 +310,10 @@ def build(slide, data, platform, sizes, base_dir):
         body = _list_body(slide, data)
         classes = f"карточка {tone} тело-список"
         default_visible = True
+    elif layout == "промпт":
+        body = _prompt_body(slide, data)
+        classes = f"карточка {tone} промпт"
+        default_visible = True
     elif layout == "CTA":
         body = _cta_body(slide, data)
         classes = f"карточка {tone} CTA"
@@ -282,9 +325,18 @@ def build(slide, data, platform, sizes, base_dir):
     visible = slide.get("подпись", default) == "показать"
     classes = f"{classes} {band_classes(binding, visible)}"
 
+    # Заголовок с «Й» или «Ё» получает больше воздуха между строками: иначе
+    # знак сверху почти касается предыдущей строки. Остальные обложки идут
+    # ровно на том интерлиньяже, который откалиброван в теме.
+    интерлиньяж = None
+    if layout == "обложка" and нужен_воздух(slide.get("заголовок", "")):
+        база = float(data.get("типографика", {}).get("интерлиньяж_обложки", 0.95))
+        интерлиньяж = round(база + ДОБАВКА_ИНТЕРЛИНЬЯЖА, 3)
+
     return (
         "<!doctype html><html lang='ru'><head><meta charset='utf-8'><style>\n"
-        + font_css(data) + "\n" + css_vars(data, sizes) + "\n" + layout_css(layout)
+        + font_css(data) + "\n" + css_vars(data, sizes, интерлиньяж) + "\n"
+        + layout_css(layout)
         + "\n</style></head><body>"
         + f'<div class="{classes}">'
         + _badge_html(binding["бейдж"])

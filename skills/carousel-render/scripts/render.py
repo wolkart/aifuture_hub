@@ -15,11 +15,19 @@ CHROME = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
 VIRTUAL_TIME_MS = 2000
 
 OVERFLOW_RE = re.compile(r'data-overflow="(\d+)"')
+OVERFLOW_X_RE = re.compile(r'data-overflow-x="(\d+)"')
 LINE_HEIGHT_RE = re.compile(r'data-line-height="(\d+)"')
 
 
 def chrome_cmd(html_path, mode, width, height, scale, out):
-    """Команда Chrome. mode: 'screenshot' | 'dom'."""
+    """Команда Chrome. mode: 'screenshot' | 'dom'.
+
+    Профиль — общий, по умолчанию. Свой `--user-data-dir` на запуск выглядит
+    правильнее для параллельной съёмки, но на Chrome 150 headless свежий
+    профиль вешает процесс наглухо (проверено: >40 с без вывода, с
+    `--no-first-run` тоже). Общий профиль параллель переносит: шесть запусков
+    рядом — 4.4 с против 13 с по очереди.
+    """
     cmd = [CHROME, "--headless", "--disable-gpu", "--hide-scrollbars",
            f"--window-size={width},{height}",
            f"--force-device-scale-factor={scale if mode == 'screenshot' else 1}",
@@ -35,8 +43,10 @@ def chrome_cmd(html_path, mode, width, height, scale, out):
 def parse_overflow(dom):
     """Достаёт замеры, которые страница положила в data-атрибуты."""
     over = OVERFLOW_RE.search(dom)
+    over_x = OVERFLOW_X_RE.search(dom)
     line = LINE_HEIGHT_RE.search(dom)
     return {"overflow_px": int(over.group(1)) if over else 0,
+            "overflow_x_px": int(over_x.group(1)) if over_x else 0,
             "line_height_px": int(line.group(1)) if line else 0}
 
 

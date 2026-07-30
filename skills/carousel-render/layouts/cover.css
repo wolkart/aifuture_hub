@@ -34,6 +34,18 @@
 
 .обложка .акцент { color: var(--акцент); font-weight: inherit; }
 
+/* Строка `низ` — у ВСЕХ видов обложки, не только у «фото». Без этого правила
+   текстовая обложка отдавала её браузеру: дефолтный serif 16px. */
+.обложка .низ {
+  font-family: Oswald, sans-serif;
+  font-size: 32px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--текст-на-тёмном);
+  margin-top: 44px;
+  opacity: 0.9;
+}
+
 /* Вид «декор»: значок в свободном верхнем углу, под текстом по слою.
    SVG вставлен в разметку, поэтому `color` здесь красит его через
    currentColor — второй файл под светлый фон не нужен. */
@@ -75,11 +87,5 @@
   font-size: var(--подзаголовок);
   line-height: 1.12;
 }
-.обложка.фото .низ {
-  font-family: Oswald, sans-serif;
-  font-size: 32px;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  margin-top: 44px;
-  opacity: 0.9;
-}
+/* На фото своя вертикаль: текст прижат к низу, строке нужен меньший отступ. */
+.обложка.фото .низ { margin-top: 36px; }
