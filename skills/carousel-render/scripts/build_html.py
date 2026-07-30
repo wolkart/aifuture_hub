@@ -9,6 +9,7 @@ data: URI. Ни одного внешнего запроса и ни одног�
 import argparse
 import base64
 import json
+import re
 from pathlib import Path
 
 import markup
@@ -74,6 +75,20 @@ def data_uri(path):
     return f"data:{mime};base64,{payload}"
 
 
+def inline_svg(path, css_class):
+    """SVG прямо в разметку, а не через <img>.
+
+    Через `<img src="data:...svg">` SVG остаётся отдельным документом, и
+    `currentColor` внутри него не наследует цвет страницы — значок выходит
+    чёрным. Вставленный в разметку он перекрашивается из темы.
+    """
+    markup_text = Path(path).read_text(encoding="utf-8").strip()
+    # Убираем XML-пролог и <title>: в inline-SVG они лишние.
+    markup_text = re.sub(r"<\?xml.*?\?>", "", markup_text, flags=re.DOTALL)
+    markup_text = re.sub(r"<title>.*?</title>", "", markup_text, flags=re.DOTALL)
+    return f'<div class="{css_class}">{markup_text.strip()}</div>'
+
+
 def font_css(data):
     """@font-face на оба семейства со встроенными файлами."""
     blocks = []
@@ -107,6 +122,10 @@ def css_vars(data, sizes):
     # Подчёркивания → дефисы, как у цветов и весов: в CSS всё через дефис.
     for name, value in sizes.items():
         lines.append(f"--{name.replace('_', '-')}: {value}px;")
+    # Тонкая типографика: значения без единиц (em, множитель) — как есть.
+    # Необязательный блок, у CSS на каждый ключ свой дефолт.
+    for name, value in data.get("типографика", {}).items():
+        lines.append(f"--{name.replace('_', '-')}: {value};")
     return ":root {\n  " + "\n  ".join(lines) + "\n}"
 
 
@@ -148,7 +167,11 @@ def _cover_body(slide, data, base_dir):
         parts.append(f'<img class="фон" src="{data_uri(photo)}" alt="">')
         parts.append('<div class="затемнение"></div>')
     elif kind == "декор":
-        parts.append(f'<img class="спарк" src="{data_uri(data["ассеты"]["спарк"])}" alt="">')
+        spark = Path(data["ассеты"]["спарк"])
+        if spark.suffix.lower() == ".svg":
+            parts.append(inline_svg(spark, "спарк"))
+        else:
+            parts.append(f'<img class="спарк" src="{data_uri(spark)}" alt="">')
 
     inner = [f'<div class="заголовок">{markup.inline(slide.get("заголовок", ""))}</div>']
     if slide.get("подзаголовок"):

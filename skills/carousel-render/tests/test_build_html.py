@@ -217,3 +217,51 @@ def test_build_rejects_missing_size(data, theme_dir):
     slide = {"№": 2, "лейаут": "тело", "блоки": ["Раз."]}
     with pytest.raises(ValueError, match="16px"):
         build_html.build(slide, data, "LI", {}, theme_dir)
+
+
+def test_css_vars_passes_typography_without_units(data, theme_dir):
+    """Трекинг и интерлиньяж — безразмерные, px к ним приписывать нельзя."""
+    data["типографика"] = {"трекинг_обложки": "-0.05em", "интерлиньяж_обложки": "0.95"}
+    css = build_html.css_vars(data, {"заголовок": 200})
+    assert "--трекинг-обложки: -0.05em;" in css
+    assert "--интерлиньяж-обложки: 0.95;" in css
+
+
+def test_css_vars_survives_theme_without_typography(data):
+    """Блок необязательный: у CSS на каждый ключ свой дефолт."""
+    assert "трекинг" not in build_html.css_vars(data, {"заголовок": 200})
+
+
+def test_inline_svg_puts_markup_in_document(theme_dir):
+    """SVG вставляется разметкой: только так currentColor берёт цвет страницы."""
+    got = build_html.inline_svg(theme_dir / "assets" / "spark.svg", "спарк")
+    assert got.startswith('<div class="спарк">')
+    assert "<svg" in got
+    assert "data:image/svg+xml" not in got
+
+
+def test_inline_svg_strips_title_and_prolog(tmp_path):
+    p = tmp_path / "icon.svg"
+    p.write_text('<?xml version="1.0"?><svg viewBox="0 0 10 10">'
+                 "<title>Claude Code</title><path d=\"M0 0\"/></svg>", encoding="utf-8")
+    got = build_html.inline_svg(p, "спарк")
+    assert "<?xml" not in got
+    assert "<title>" not in got
+    assert "<path" in got
+
+
+def test_decor_cover_inlines_svg_not_img(data, theme_dir):
+    slide = {"№": 1, "лейаут": "обложка", "вид": "декор", "заголовок": "Тест"}
+    got = build_html.build(slide, data, "IG", {"заголовок": 150}, theme_dir)
+    assert '<div class="спарк"><svg' in got
+    assert 'class="спарк" src=' not in got
+
+
+def test_decor_cover_falls_back_to_img_for_raster(data, theme_dir):
+    """Растровый значок тоже поддержан — просто без перекраски."""
+    raster = theme_dir / "assets" / "spark.png"
+    raster.write_bytes(b"\x89PNG\r\n\x1a\nfake")
+    data["ассеты"]["спарк"] = raster
+    slide = {"№": 1, "лейаут": "обложка", "вид": "декор", "заголовок": "Тест"}
+    got = build_html.build(slide, data, "IG", {"заголовок": 150}, theme_dir)
+    assert 'class="спарк" src="data:image/png' in got
