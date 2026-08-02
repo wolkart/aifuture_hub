@@ -81,7 +81,8 @@ def test_run_produces_pngs_and_sheet(slides_json, theme_file, tmp_path):
     """Полный прогон: PNG нужного размера, простыня, пустой список проблем."""
     import render
 
-    result = carousel_render.run(slides_json, theme_file, tmp_path / "out")
+    result = carousel_render.run(slides_json, theme_file, tmp_path / "out",
+                                 keep_png=True)
     assert len(result["слайды"]) == 2
     for item in result["слайды"]:
         assert item["png"].exists()
@@ -90,11 +91,47 @@ def test_run_produces_pngs_and_sheet(slides_json, theme_file, tmp_path):
     assert result["проблемы"] == []
 
 
+def test_linkedin_отдаёт_документ_без_карточек(slides_json, theme_file, tmp_path):
+    """LinkedIn грузит PDF. Семнадцать PNG рядом — это мусор, в котором
+    легко залить не тот файл."""
+    result = carousel_render.run(slides_json, theme_file, tmp_path / "out")
+    assert result["документ"].exists()
+    assert result["карточки_убраны"] is True
+    assert not any(item["png"].exists() for item in result["слайды"])
+    assert result["простыня"].exists(), "простыня остаётся: по ней проверяют глазами"
+
+
+def test_флаг_png_оставляет_карточки(slides_json, theme_file, tmp_path):
+    result = carousel_render.run(slides_json, theme_file, tmp_path / "out",
+                                 keep_png=True)
+    assert result["карточки_убраны"] is False
+    assert all(item["png"].exists() for item in result["слайды"])
+
+
+def test_инстаграм_карточки_не_трогает(slides_json, theme_file, tmp_path):
+    """В IG грузят именно картинки — удалять их нельзя даже с --pdf."""
+    spec = json.loads(slides_json.read_text(encoding="utf-8"))
+    spec["meta"]["площадка"] = "IG"
+    slides_json.write_text(json.dumps(spec, ensure_ascii=False), encoding="utf-8")
+    result = carousel_render.run(slides_json, theme_file, tmp_path / "out",
+                                 pdf_doc=True)
+    assert result["документ"].exists()
+    assert result["карточки_убраны"] is False
+    assert all(item["png"].exists() for item in result["слайды"])
+
+
+def test_отчёт_говорит_куда_делись_карточки():
+    отчёт = carousel_render.format_report(
+        {"папка": Path("/тут"), "слайды": [], "простыня": None,
+         "документ": Path("/тут/док.pdf"), "карточки_убраны": True})
+    assert "--png" in отчёт
+
+
 @pytest.mark.integration
 def test_run_is_deterministic(slides_json, theme_file, tmp_path):
     """Один и тот же вход даёт побайтово те же PNG."""
-    first = carousel_render.run(slides_json, theme_file, tmp_path / "a")
-    second = carousel_render.run(slides_json, theme_file, tmp_path / "b")
+    first = carousel_render.run(slides_json, theme_file, tmp_path / "a", keep_png=True)
+    second = carousel_render.run(slides_json, theme_file, tmp_path / "b", keep_png=True)
     for a, b in zip(first["слайды"], second["слайды"]):
         assert a["png"].read_bytes() == b["png"].read_bytes(), f"слайд {a['№']} разъехался"
 

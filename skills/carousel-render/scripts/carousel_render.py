@@ -66,13 +66,16 @@ def preview_page(html_names, card_w, card_h, cols=3):
     )
 
 
-def run(slides_json, theme_path, out_dir=None, preview=False, pdf_doc=False):
+def run(slides_json, theme_path, out_dir=None, preview=False, pdf_doc=False,
+        keep_png=False):
     """Полный прогон карусели. Возвращает структуру для отчёта.
 
     preview=True сохраняет промежуточный HTML рядом с PNG и собирает
     страницу превью — обычно этот HTML живёт во временной папке и удаляется.
     pdf_doc=True собирает PDF-документ и для Instagram (для LinkedIn он
     собирается всегда).
+    keep_png=True оставляет отдельные карточки там, где они по умолчанию
+    убираются, — на LinkedIn.
     """
     slides_json = Path(slides_json)
     spec = json.loads(slides_json.read_text(encoding="utf-8"))
@@ -124,6 +127,15 @@ def run(slides_json, theme_path, out_dir=None, preview=False, pdf_doc=False):
     if pngs and (pdf_doc or platform == "LI"):
         document, _ = pdf_mod.pngs_to_pdf(pngs, target / f"{name}.pdf")
 
+    # LinkedIn грузит документ, отдельные карточки туда не загружаются вообще.
+    # Оставлять их — значит каждый раз искать нужный файл среди семнадцати
+    # ненужных и рисковать залить не то. Простыня остаётся: по ней проверяют
+    # результат глазами, и она одна.
+    карточки_убраны = bool(document) and platform == "LI" and not keep_png
+    if карточки_убраны:
+        for png in pngs:
+            png.unlink()
+
     page = None
     if preview and slides:
         page = target / "превью.html"
@@ -132,7 +144,8 @@ def run(slides_json, theme_path, out_dir=None, preview=False, pdf_doc=False):
                         encoding="utf-8")
 
     return {"папка": target, "слайды": slides, "простыня": sheet,
-            "документ": document, "превью": page, "проблемы": problems}
+            "документ": document, "карточки_убраны": карточки_убраны,
+            "превью": page, "проблемы": problems}
 
 
 def format_report(result):
@@ -141,7 +154,10 @@ def format_report(result):
     if result.get("простыня"):
         lines.append(f"Простыня: {result['простыня']}")
     if result.get("документ"):
-        lines.append(f"Документ PDF (LinkedIn грузит его): {result['документ']}")
+        lines.append(f"Документ PDF (его и грузим): {result['документ']}")
+    if result.get("карточки_убраны"):
+        lines.append("Отдельные PNG убраны — LinkedIn берёт только документ. "
+                     "Нужны карточками: флаг --png")
     if result.get("превью"):
         lines.append(f"Превью (живой HTML): {result['превью']}")
 
@@ -174,11 +190,13 @@ def main():
                     help="сохранить HTML карточек и собрать страницу превью")
     ap.add_argument("--pdf", dest="pdf_doc", action="store_true",
                     help="собрать PDF-документ (для площадки LI собирается сам)")
+    ap.add_argument("--png", "--слайды", dest="keep_png", action="store_true",
+                    help="оставить отдельные PNG там, где они убираются (LI)")
     args = ap.parse_args()
     if not args.theme:
         raise SystemExit("THEME_PATH не задан — запусти scripts/check_env.py")
     print(format_report(run(args.slides_json, args.theme, args.out,
-                            args.preview, args.pdf_doc)))
+                            args.preview, args.pdf_doc, args.keep_png)))
 
 
 if __name__ == "__main__":
