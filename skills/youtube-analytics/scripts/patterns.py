@@ -148,7 +148,31 @@ def _table(title, stats):
     return lines
 
 
-def render_markdown(report, channel):
+def _thumbs_section(thumbs):
+    """Раздел 8 — только если режим thumbs отработал."""
+    if not thumbs:
+        return []
+    out = ["## 8. Текст на превью", ""]
+    if thumbs.get("skipped"):
+        return out + [thumbs["skipped"], ""]
+    out += ["Распознано у %d превью из %d. На превью работает та же ось, что "
+            "в тайтле: цена, имя инструмента, конкретика."
+            % (thumbs.get("covered", 0), thumbs.get("total", 0)),
+            "",
+            "| признак на превью | с признаком | без | роликов | надёжно |",
+            "|---|---|---|---|---|"]
+    for name in sorted(thumbs.get("slices", {})):
+        s = thumbs["slices"][name]
+        out.append("| %s | %s | %s | %d | %s |" % (
+            name,
+            "—" if s["median_multiple"] is None else s["median_multiple"],
+            "—" if s["median_without"] is None else s["median_without"],
+            s["n"], "да" if s["reliable"] else "нет (<%d)" % MIN_GROUP))
+    out.append("")
+    return out
+
+
+def render_markdown(report, channel, thumbs=None):
     out = [
         "# Разбор — тайтлы и паттерны: %s" % channel.get("title", ""),
         "",
@@ -207,6 +231,7 @@ def render_markdown(report, channel):
 
     out += ["## 7. Ритм публикаций", ""] + _table("Роликов в месяц",
                                                   report["rhythm"])
+    out += _thumbs_section(thumbs)
     out += ["## Что забираем себе", "",
             "_Заполняется руками после чтения срезов выше: "
             "механика тайтлов из топа, что НЕ повторять из дна, "
@@ -222,8 +247,12 @@ def main(argv=None):
 
     data = json.loads(Path(args.src).read_text(encoding="utf-8"))
     report = build_report(data)
+    # режим thumbs отработал раньше — подхватываем его срез, если он рядом
+    thumbs_path = Path(args.src).parent / ".thumbs.json"
+    thumbs = (json.loads(thumbs_path.read_text(encoding="utf-8"))
+              if thumbs_path.exists() else None)
     Path(args.out).write_text(
-        render_markdown(report, data["channel"]), encoding="utf-8")
+        render_markdown(report, data["channel"], thumbs), encoding="utf-8")
     print(json.dumps({"videos": report["total"], "out": args.out},
                      ensure_ascii=False))
     return 0

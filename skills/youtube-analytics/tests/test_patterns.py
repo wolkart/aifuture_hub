@@ -93,3 +93,41 @@ def test_render_markdown_ends_with_takeaways_section():
     assert "## Что забираем себе" in md
     # секция «Что забираем себе» — последняя, её не перекрывают другие срезы
     assert md.index("## Что забираем себе") > md.index("## 7. Ритм публикаций")
+
+
+def _one_video_data():
+    return {"channel": {"title": "T", "handle": "t", "subscribers": 1},
+            "videos": [{"id": "a", "title": "t", "date": "2026-07-01",
+                        "kind": "long", "views": 10, "duration_sec": 600,
+                        "description": "", "median_multiple": 1.0,
+                        "engagement_rate": 0.01, "views_per_day": 1.0}]}
+
+
+def test_render_markdown_adds_thumbnail_section_when_given():
+    data = _one_video_data()
+    thumbs = {"covered": 40, "total": 47, "skipped": "",
+              "slices": {"бесплатно": {"n": 6, "median_multiple": 3.75,
+                                       "median_without": 0.96,
+                                       "reliable": True}}}
+    md = patterns.render_markdown(patterns.build_report(data),
+                                  data["channel"], thumbs)
+    assert "## 8. Текст на превью" in md
+    assert "3.75" in md
+    assert "0.96" in md
+    # раздел «Что забираем себе» остаётся последним
+    assert md.index("## Что забираем себе") > md.index("## 8. Текст на превью")
+
+
+def test_render_markdown_without_thumbs_has_no_section():
+    data = _one_video_data()
+    md = patterns.render_markdown(patterns.build_report(data), data["channel"])
+    assert "Текст на превью" not in md
+
+
+def test_render_markdown_reports_skipped_ocr():
+    data = _one_video_data()
+    thumbs = {"covered": 0, "total": 47,
+              "skipped": "OCR недоступен: нужен macOS", "slices": {}}
+    md = patterns.render_markdown(patterns.build_report(data),
+                                  data["channel"], thumbs)
+    assert "OCR недоступен" in md
