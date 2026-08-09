@@ -72,3 +72,29 @@ def test_example_theme_is_valid():
     data = theme.load(p)
     problems = [x for x in theme.validate(data) if "не найден" not in x]
     assert problems == []
+
+
+def test_ступени_промпта_есть_без_правки_темы(theme_file):
+    """Лейаут появился позже темы автора: требовать ключ — сломать все темы."""
+    data = theme.load(theme_file)
+    assert theme.steps(data, "промпт") == theme.DEFAULT_STEPS["промпт"]
+
+
+def test_тема_перебивает_ступени_по_умолчанию(theme_file):
+    data = theme.load(theme_file)
+    data.setdefault("ступени", {})["промпт"] = [40, 34, 30]
+    assert theme.steps(data, "промпт") == [40, 34, 30]
+
+
+def test_неизвестная_роль_падает_понятно(theme_file):
+    data = theme.load(theme_file)
+    with pytest.raises(KeyError):
+        theme.steps(data, "выдуманная_роль")
+
+
+def test_обвязка_промпта_уезжает_вниз_по_умолчанию(theme_file):
+    """Сверху на плотной карточке места нет — там текст."""
+    data = theme.load(theme_file)
+    got = theme.binding(data, "IG", "промпт")
+    assert got["бейдж"] == "низ-право"
+    assert got["подпись_позиция"] == "низ-лево"

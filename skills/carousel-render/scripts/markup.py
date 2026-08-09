@@ -10,6 +10,10 @@ import re
 
 ACCENT_RE = re.compile(r"\*\*(.+?)\*\*", re.DOTALL)
 
+# Плейсхолдер промпта: [ВСТАВЬ ОШИБКУ]. Подсвечивается сам, без разметки —
+# автор пишет промпт так же, как отдаёт его человеку, и не расставляет `**`.
+PLACEHOLDER_RE = re.compile(r"\[[^\[\]]+\]")
+
 # Стрелка-нить рисуется, а не набирается символом. Глиф «⇢» в Montserrat даёт
 # залитый треугольник — тяжелее и короче открытой стрелки штрихом, которую
 # ставит автор. Вектор в em-единицах масштабируется вместе с кеглем текста.
@@ -37,6 +41,17 @@ def inline(text):
     safe = escape(text)
     marked = ACCENT_RE.sub(r'<b class="акцент">\1</b>', safe)
     return marked.replace("\n", "<br>")
+
+
+def prompt_text(text):
+    """Текст промпта: экранирует и подсвечивает плейсхолдеры.
+
+    Переносы строк не трогаем — их держит `white-space: pre-wrap` в CSS.
+    Так текст в JSON выглядит ровно так же, как на карточке.
+    """
+    safe = escape(text)
+    return PLACEHOLDER_RE.sub(lambda m: f'<span class="акцент">{m.group(0)}</span>',
+                              safe)
 
 
 def with_thread(html_text):

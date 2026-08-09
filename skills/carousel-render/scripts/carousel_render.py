@@ -14,6 +14,7 @@ from pathlib import Path
 import contact_sheet
 import envfile
 import fit
+import pdf as pdf_mod
 import render
 import theme as theme_mod
 
@@ -65,11 +66,16 @@ def preview_page(html_names, card_w, card_h, cols=3):
     )
 
 
-def run(slides_json, theme_path, out_dir=None, preview=False):
+def run(slides_json, theme_path, out_dir=None, preview=False, pdf_doc=False,
+        keep_png=False):
     """Полный прогон карусели. Возвращает структуру для отчёта.
 
     preview=True сохраняет промежуточный HTML рядом с PNG и собирает
     страницу превью — обычно этот HTML живёт во временной папке и удаляется.
+    pdf_doc=True собирает PDF-документ и для Instagram (для LinkedIn он
+    собирается всегда).
+    keep_png=True оставляет отдельные карточки там, где они по умолчанию
+    убираются, — на LinkedIn.
     """
     slides_json = Path(slides_json)
     spec = json.loads(slides_json.read_text(encoding="utf-8"))
@@ -88,6 +94,13 @@ def run(slides_json, theme_path, out_dir=None, preview=False):
     if preview:
         html_dir.mkdir(parents=True, exist_ok=True)
 
+    # Карточки снимаются по очереди. Пробовал пул потоков (карточки независимы,
+    # время съедает холодный старт Chrome на каждый замер и кадр): 11 карточек
+    # улетают за 10 с вместо 75, но 12-я стабильно вешается — Chrome держит
+    # singleton-lock на общем профиле, и под нагрузкой один запуск уходит в
+    # бесконечное ожидание. Свой `--user-data-dir` на запуск это лечит в теории,
+    # а на Chrome 150 headless вешает процесс сразу (и с `--no-first-run`).
+    # Настоящее решение — один запуск Chrome на всю карусель: см. BACKLOG.
     slides, pngs = [], []
     keeper = (nullcontext(str(html_dir)) if preview
               else tempfile.TemporaryDirectory(prefix="carousel-render-"))
@@ -101,11 +114,27 @@ def run(slides_json, theme_path, out_dir=None, preview=False):
             pngs.append(png)
             slides.append({"№": slide["№"], "png": png, "ступень": fitted["ступень"],
                            "переполнение": fitted["переполнение"],
+                           "переполнение_ширина": fitted.get("переполнение_ширина", 0),
                            "недобор_символов": fitted["недобор_символов"]})
 
     sheet = (contact_sheet.build_sheet(pngs, target / "contact-sheet.png",
                                        card_w=fmt["ширина"], card_h=fmt["высота"])
              if pngs else None)
+
+    # LinkedIn публикует карусель документом, а не набором картинок, поэтому
+    # для площадки LI документ собирается сам. Для IG — только по просьбе.
+    document = None
+    if pngs and (pdf_doc or platform == "LI"):
+        document, _ = pdf_mod.pngs_to_pdf(pngs, target / f"{name}.pdf")
+
+    # LinkedIn грузит документ, отдельные карточки туда не загружаются вообще.
+    # Оставлять их — значит каждый раз искать нужный файл среди семнадцати
+    # ненужных и рисковать залить не то. Простыня остаётся: по ней проверяют
+    # результат глазами, и она одна.
+    карточки_убраны = bool(document) and platform == "LI" and not keep_png
+    if карточки_убраны:
+        for png in pngs:
+            png.unlink()
 
     page = None
     if preview and slides:
@@ -115,6 +144,7 @@ def run(slides_json, theme_path, out_dir=None, preview=False):
                         encoding="utf-8")
 
     return {"папка": target, "слайды": slides, "простыня": sheet,
+            "документ": document, "карточки_убраны": карточки_убраны,
             "превью": page, "проблемы": problems}
 
 
@@ -123,6 +153,11 @@ def format_report(result):
     lines = [f"Снято карточек: {len(result['слайды'])} → {result['папка']}"]
     if result.get("простыня"):
         lines.append(f"Простыня: {result['простыня']}")
+    if result.get("документ"):
+        lines.append(f"Документ PDF (его и грузим): {result['документ']}")
+    if result.get("карточки_убраны"):
+        lines.append("Отдельные PNG убраны — LinkedIn берёт только документ. "
+                     "Нужны карточками: флаг --png")
     if result.get("превью"):
         lines.append(f"Превью (живой HTML): {result['превью']}")
 
@@ -134,6 +169,10 @@ def format_report(result):
         if s["переполнение"] > 0:
             lines.append(f"слайд {s['№']}: не влезает даже на минимальной ступени — "
                          f"сократи примерно на {s['недобор_символов']} символов")
+        if s.get("переполнение_ширина", 0) > 0:
+            lines.append(f"слайд {s['№']}: текст шире карточки на "
+                         f"{s['переполнение_ширина']}px и обрежется — укороти самое "
+                         f"длинное слово, перенос строки тут не спасёт")
 
     for p in result.get("проблемы", []):
         lines.append(f"проблема темы: {p}")
@@ -149,10 +188,15 @@ def main():
     # Два имени: кириллица под стиль скилла, латиница чтобы набирать в терминале.
     ap.add_argument("--превью", "--preview", dest="preview", action="store_true",
                     help="сохранить HTML карточек и собрать страницу превью")
+    ap.add_argument("--pdf", dest="pdf_doc", action="store_true",
+                    help="собрать PDF-документ (для площадки LI собирается сам)")
+    ap.add_argument("--png", "--слайды", dest="keep_png", action="store_true",
+                    help="оставить отдельные PNG там, где они убираются (LI)")
     args = ap.parse_args()
     if not args.theme:
         raise SystemExit("THEME_PATH не задан — запусти scripts/check_env.py")
-    print(format_report(run(args.slides_json, args.theme, args.out, args.preview)))
+    print(format_report(run(args.slides_json, args.theme, args.out,
+                            args.preview, args.pdf_doc, args.keep_png)))
 
 
 if __name__ == "__main__":

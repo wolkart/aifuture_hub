@@ -37,3 +37,6 @@ docs/superpowers/working/
 
 # Скретч subagent-driven исполнения (ledger прогресса)
 .superpowers/
+
+# Скомпилированные бинарники скриптов скиллов (собираются на месте)
+.build/

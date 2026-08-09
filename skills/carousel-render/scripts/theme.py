@@ -9,7 +9,7 @@ import argparse
 import json
 from pathlib import Path
 
-LAYOUTS = ("обложка", "тело", "тело-список", "CTA")
+LAYOUTS = ("обложка", "тело", "тело-список", "промпт", "CTA")
 PLATFORMS = ("IG", "LI")
 
 REQUIRED_COLORS = ("заголовок_обложки", "акцент", "текст_тела",
@@ -21,6 +21,15 @@ REQUIRED_ROLES = ("заголовок_обложки", "подзаголовок
 REQUIRED_STEPS = ("обложка_заголовок", "обложка_подзаголовок", "тело",
                   "тело_список", "cta")
 STEP_COUNT = 3
+
+# Ступени для лейаутов, появившихся позже темы автора. Требовать их в теме
+# нельзя: это сломало бы все существующие темы на ровном месте. Задал у себя —
+# твои значения побеждают, не задал — работает на этих.
+DEFAULT_STEPS = {"промпт": [30, 26, 23]}
+
+# Обвязка по умолчанию под лейаут, которого нет в теме. У плотной карточки
+# бейдж и подпись уходят вниз: сверху им негде стоять, там текст.
+DEFAULT_POSITIONS = {"промпт": {"бейдж": "низ-право", "подпись": "низ-лево"}}
 
 
 def load(path):
@@ -88,7 +97,7 @@ def binding(data, platform, layout):
     у LinkedIn имя с должностью в две, и аватарки разные.
     """
     block = data["обвязка"][platform]
-    positions = block["позиции"].get(layout, {})
+    positions = block["позиции"].get(layout) or DEFAULT_POSITIONS.get(layout, {})
     return {
         "аватар": block["аватар"],
         "подпись": list(block["подпись"]),
@@ -99,7 +108,10 @@ def binding(data, platform, layout):
 
 def steps(data, key):
     """Ступени кегля под роль, от крупной к мелкой."""
-    return list(data["ступени"][key])
+    values = data.get("ступени", {}).get(key) or DEFAULT_STEPS.get(key)
+    if not values:
+        raise KeyError(f"ступени: не задан «{key}» и нет значения по умолчанию")
+    return list(values)
 
 
 def main():
