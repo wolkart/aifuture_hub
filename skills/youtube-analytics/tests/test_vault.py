@@ -97,3 +97,15 @@ def test_write_base_creates_obsidian_base(tmp_path):
     text = path.read_text(encoding="utf-8")
     assert "median_multiple" in text
     assert "file.name" in text
+
+
+def test_card_has_thumbnail_text_section():
+    md = vault.card_markdown(_video(), CHANNEL)
+    assert "## Текст на превью" in md
+
+
+def test_card_fills_thumbnail_text_when_known():
+    v = _video()
+    v["thumbnail_text"] = "БЕСПЛАТНО НАВСЕГДА"
+    md = vault.card_markdown(v, CHANNEL)
+    assert "БЕСПЛАТНО НАВСЕГДА" in md

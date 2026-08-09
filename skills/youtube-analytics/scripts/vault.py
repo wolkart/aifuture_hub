@@ -18,8 +18,9 @@ COLUMNS = ["id", "title", "channel", "url", "kind", "date", "duration_sec",
            "engagement_rate", "description", "tags", "thumbnail_url",
            "tier2_status", "intro_transcript", "top_comments", "notes"]
 
-KEEP_SECTIONS = ("## Вступление (дословно)", "## Разбор вступления",
-                 "## Главы", "## Комментарии", "## Заметки")
+KEEP_SECTIONS = ("## Текст на превью", "## Вступление (дословно)",
+                 "## Разбор вступления", "## Главы", "## Комментарии",
+                 "## Заметки")
 
 
 def short_title(title, limit=60):
@@ -67,6 +68,9 @@ def card_markdown(record, channel):
         "",
         "## Описание",
         record.get("description", "") or "",
+        "",
+        "## Текст на превью",
+        record.get("thumbnail_text") or "(пусто — прогони режим thumbs)",
         "",
         "## Вступление (дословно)",
         "(пусто до enrich)",
