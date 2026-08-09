@@ -209,8 +209,16 @@ def _signature_html(binding, visible):
             f'<div><div class="имя">{name}</div>{title}</div></div>')
 
 
+def _spark_html(data, css_class):
+    """Значок темы разметкой. SVG — инлайном, чтобы красился currentColor."""
+    spark = Path(data["ассеты"]["спарк"])
+    if spark.suffix.lower() == ".svg":
+        return inline_svg(spark, css_class)
+    return f'<img class="{css_class}" src="{data_uri(spark)}" alt="">'
+
+
 def _cover_body(slide, data, base_dir):
-    """Содержимое обложки. Виды: текст (по умолчанию), декор, фото."""
+    """Содержимое обложки. Виды: текст (по умолчанию), декор, значок, фото."""
     kind = slide.get("вид", "текст")
     parts = []
 
@@ -219,17 +227,18 @@ def _cover_body(slide, data, base_dir):
         parts.append(f'<img class="фон" src="{data_uri(photo)}" alt="">')
         parts.append('<div class="затемнение"></div>')
     elif kind == "декор":
-        spark = Path(data["ассеты"]["спарк"])
-        if spark.suffix.lower() == ".svg":
-            parts.append(inline_svg(spark, "спарк"))
-        else:
-            parts.append(f'<img class="спарк" src="{data_uri(spark)}" alt="">')
+        parts.append(_spark_html(data, "спарк"))
 
     inner = [f'<div class="заголовок">{markup.inline(slide.get("заголовок", ""))}</div>']
     if slide.get("подзаголовок"):
         inner.append(f'<div class="подзаголовок">{markup.inline(slide["подзаголовок"])}</div>')
     if slide.get("низ"):
         inner.append(f'<div class="низ">{markup.inline(slide["низ"])}</div>')
+    # Вид «значок»: герой кадра, а не фон — поэтому он внутри содержимого, в
+    # потоке под текстом, а не абсолютом в углу, как «декор».
+    if kind == "значок":
+        inner.append('<div class="значок-герой">'
+                     + _spark_html(data, "рисунок") + "</div>")
 
     parts.append('<div class="содержимое">' + "".join(inner) + "</div>")
     return "".join(parts), kind
