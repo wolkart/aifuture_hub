@@ -78,6 +78,48 @@ def test_chapters_from_json_missing():
     assert fetch_intro.chapters_from_json({"chapters": None}) == []
 
 
+def test_pick_sub_lang_prefers_manual_over_auto():
+    meta = {"language": "ru",
+            "subtitles": {"ru": [{}]},
+            "automatic_captions": {"ru-orig": [{}], "en": [{}]}}
+    assert fetch_intro.pick_sub_lang(meta) == "ru"
+
+
+def test_pick_sub_lang_takes_original_auto_track():
+    # русский ролик: en-дорожка это ПЕРЕВОД на лету — просить её нельзя,
+    # YouTube отдаёт 429 и роняет весь вызов
+    meta = {"language": "ru",
+            "automatic_captions": {"en": [{}], "ru-orig": [{}], "de": [{}]}}
+    assert fetch_intro.pick_sub_lang(meta) == "ru-orig"
+
+
+def test_pick_sub_lang_falls_back_to_video_language():
+    meta = {"language": "en", "automatic_captions": {"en": [{}], "fr": [{}]}}
+    assert fetch_intro.pick_sub_lang(meta) == "en"
+
+
+def test_pick_sub_lang_without_metadata():
+    assert fetch_intro.pick_sub_lang({}) == "en"
+
+
+def test_fetch_requests_single_original_track(tmp_path):
+    """Скрипт обязан просить ОДНУ дорожку, иначе перевод на лету даёт 429."""
+    seen = {}
+
+    def runner(cmd, **kwargs):
+        if "-J" in cmd:
+            return json.dumps({"title": "T", "chapters": [], "language": "ru",
+                               "automatic_captions": {"ru-orig": [{}],
+                                                      "en": [{}]}})
+        seen["langs"] = cmd[cmd.index("--sub-langs") + 1]
+        (tmp_path / "vid.ru-orig.vtt").write_text(VTT, encoding="utf-8")
+        return ""
+
+    fetch_intro.fetch("vid", runner=runner, workdir=tmp_path)
+    assert seen["langs"] == "ru-orig"
+    assert "," not in seen["langs"]
+
+
 def test_fetch_degrades_when_no_subtitles(tmp_path):
     def runner(cmd, **kwargs):
         # -J отдаёт метаданные, скачивание субтитров ничего не создаёт
