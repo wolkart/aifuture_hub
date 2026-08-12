@@ -50,7 +50,7 @@ def test_css_vars_exposes_brand_colors(data):
 
 def test_build_is_self_contained(data, theme_dir):
     slide = {"№": 1, "лейаут": "обложка",
-             "заголовок": "Агент.\nХарнес.\nLoop.",
+             "заголовок": "Три шага\nвместо\nдесяти",
              "подзаголовок": "Звучит как высшая математика."}
     got = build_html.build(slide, data, "LI",
                            {"заголовок": 200, "подзаголовок": 56}, theme_dir)
@@ -60,9 +60,9 @@ def test_build_is_self_contained(data, theme_dir):
 
 
 def test_build_renders_forced_line_breaks(data, theme_dir):
-    slide = {"№": 1, "лейаут": "обложка", "заголовок": "Агент.\nХарнес."}
+    slide = {"№": 1, "лейаут": "обложка", "заголовок": "Три шага\nвместо"}
     got = build_html.build(slide, data, "LI", {"заголовок": 200}, theme_dir)
-    assert "Агент.<br>Харнес." in got
+    assert "Три шага<br>вместо" in got
 
 
 def test_build_applies_accent_on_cover(data, theme_dir):
@@ -74,15 +74,15 @@ def test_build_applies_accent_on_cover(data, theme_dir):
 def test_build_puts_li_signature_in_two_lines(data, theme_dir):
     slide = {"№": 1, "лейаут": "обложка", "заголовок": "Тест"}
     got = build_html.build(slide, data, "LI", {"заголовок": 200}, theme_dir)
-    assert "Artem Volkov" in got
-    assert "AI-Developer &amp; Content Creator" in got
+    assert "Your Name" in got
+    assert "Role &amp; Tagline" in got
 
 
 def test_build_puts_ig_signature_in_one_line(data, theme_dir):
     slide = {"№": 1, "лейаут": "обложка", "заголовок": "Тест"}
     got = build_html.build(slide, data, "IG", {"заголовок": 200}, theme_dir)
-    assert "@ai_rtem" in got
-    assert "AI-Developer" not in got
+    assert "@your_handle" in got
+    assert "Role" not in got
 
 
 def test_build_includes_measure_js(data, theme_dir):
@@ -180,7 +180,7 @@ def test_cta_signature_sits_on_top(data, theme_dir):
     slide = {"№": 7, "лейаут": "CTA", "блоки": ["Подписывайся."]}
     got = build_html.build(slide, data, "LI", {"cta": 50}, theme_dir)
     assert "подпись верх-центр" in got
-    assert "Artem Volkov" in got
+    assert "Your Name" in got
 
 
 def test_cta_renders_all_blocks(data, theme_dir):

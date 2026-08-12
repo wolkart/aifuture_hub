@@ -30,7 +30,7 @@ def test_inline_is_non_greedy():
 
 
 def test_inline_newline_becomes_br():
-    assert markup.inline("Агент.\nХарнес.") == "Агент.<br>Харнес."
+    assert markup.inline("Три шага\nвместо") == "Три шага<br>вместо"
 
 
 def test_inline_escapes_before_markup():

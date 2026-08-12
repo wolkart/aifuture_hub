@@ -3,7 +3,7 @@
   "evals": [
     {
       "id": 1,
-      "prompt": "отрендери карусель «Агент. Харнес. Loop.»",
+      "prompt": "отрендери карусель «Три шага вместо десяти»",
       "expected_output": "Активируется carousel-render: доктор check_env → carousel_render.py по найденному slides.json → PNG 1080×1350 + contact-sheet.png + короткий отчёт с путями",
       "files": []
     },

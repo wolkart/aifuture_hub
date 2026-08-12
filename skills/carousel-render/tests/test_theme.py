@@ -45,14 +45,14 @@ def test_validate_requires_three_steps(theme_file):
 
 def test_binding_ig_cover(theme_file):
     b = theme.binding(theme.load(theme_file), "IG", "обложка")
-    assert b["подпись"] == ["@ai_rtem"]
+    assert b["подпись"] == ["@your_handle"]
     assert b["бейдж"] == "верх-центр"
     assert b["подпись_позиция"] == "низ-лево"
 
 
 def test_binding_li_body_has_two_lines(theme_file):
     b = theme.binding(theme.load(theme_file), "LI", "тело")
-    assert b["подпись"] == ["Artem Volkov", "AI-Developer & Content Creator"]
+    assert b["подпись"] == ["Your Name", "Role & Tagline"]
     assert b["подпись_позиция"] == "низ-центр"
 
 
