@@ -1,6 +1,6 @@
 # Утро Hermes: НейроПульс голосом автора + «Тулзы дня»
 
-Дата: 2026-10-11. Статус: дизайн утверждён автором по частям в разговоре, спек на ревью.
+Дата: 2026-10-11. Статус: реализовано 2026-10-11 (хаб — PR #25; сервер — по разделу ниже, с отмеченными отступлениями).
 
 ## Проблема
 
@@ -85,16 +85,17 @@ Hermes — контейнер `nousresearch/hermes-agent`, `HERMES_HOME=/opt/dat
 **Подключение хаба:**
 - `git clone https://github.com/wolkart/aifuture_hub /opt/data/hub` (репозиторий публичный, ключи не нужны), владелец — `hermes`;
 - `config.yaml`: `skills.external_dirs: [/opt/data/hub/skills]`;
-- `mv /opt/data/skills/aifuture /opt/data/skills/.archive/aifuture-2026-07-29` — Hermes сам складывает старые скиллы в `.archive/`.
+- `mv /opt/data/skills/aifuture /opt/data/backups/skills-aifuture-2026-07-29`. Сначала планировалось в `skills/.archive/`, но загрузчик Hermes ищет скиллы и там: файл `references/brand-voice.md` из архива давал коллизию имени. Это была штатная установка 2026-07-29 через `hermes skills install` из тапа `wolkart/aifuture_hub`; записи в `skills/.hub/lock.json` остались, поэтому `hermes skills list` их показывает. `hermes skills update` по этим записям может поставить копию обратно (не проверено) — перед ним убрать записи через `hermes skills uninstall`.
+- **Коллизия имени `brand-voice`.** Голое имя совпадает с файлом `brand-voice/references/brand-voice.md` внутри самого скилла, и загрузчик Hermes отказывает. В задачах скилл указан полным путём `brand-voice/SKILL.md`.
 
 **⚡ НейроПульс** (`daily-ai-news-club-digest`, `b65462e35323`, 07:00):
-- скиллы: `research-intelligence-workflows` → `ai-research`, `brand-voice`;
-- промпт: шаг 0 `git -C /opt/data/hub pull --ff-only`; режим `digest` скилла `ai-research`; голос по `brand-voice` (`copy-law` + `brand-voice.md`) и правилам Telegram из `post-hq/references/platforms/telegram.md`; выводы по правилам `digest`; хайп и рыночные новости разрешены;
+- скиллы: `research-intelligence-workflows` → `ai-research`, `brand-voice/SKILL.md`;
+- промпт: шаг 0 `git -C /opt/data/hub pull --ff-only`; режим `digest` скилла `ai-research`; голос по `brand-voice` (`copy-law` + `brand-voice.md`) — без модуля Telegram из `post-hq`: он про отдельный пост с CTA и тянул бы призыв в дайджест; выводы по правилам `digest`; хайп и рыночные новости разрешены;
 - остаётся как было: шапка `⚡ НейроПульс | DD.MM.YYYY`, легенда эмодзи, 5–7 пунктов (до 10 в большой день), подвал `AI Future Club`, запрет чужого бренда, без раздела «Источники», доставка в личный чат;
 - уходит: требование практического вывода для билдеров в каждом пункте.
 
 **🛠 Тулзы дня** (новая задача `tools-of-the-day`, 07:15):
-- скиллы `ai-research`, `brand-voice`; тулсеты `web`, `terminal`; доставка в тот же личный чат;
+- id `e9c49556c998`; скиллы `ai-research`, `brand-voice/SKILL.md`; тулсеты `web`, `terminal` (выставлены через `cron.jobs.update_job` — у `hermes cron create` нет флага, а дефолт cron включает два десятка тулсетов); доставка `telegram:541096613`;
 - промпт: режим `radar`; темы автора; файл «уже показывал» `/opt/data/state/tools-seen.txt` (каталог `state/` создать, владелец `hermes`); шапка `🛠 Тулзы дня | DD.MM.YYYY`, без подвала клуба — сообщение в первую очередь для автора; голос и выводы — как у НейроПульса; нового нет → `[SILENT]`.
 
 `git pull` выполняет только НейроПульс: он идёт первым, «Тулзы дня» через 15 минут читают уже свежий клон. `SKILL.md` грузится до старта задачи, поэтому правка в нём доходит со следующего утра; файлы из `references/` агент читает по ходу работы — свежими в тот же день.
@@ -109,7 +110,7 @@ Hermes — контейнер `nousresearch/hermes-agent`, `HERMES_HOME=/opt/dat
 
 ## Откат
 
-`config.yaml` и `cron/jobs.json` из копий `.bak-20261011`, `mv` архива обратно в `skills/aifuture`, удалить задачу `tools-of-the-day`. Клон `/opt/data/hub` можно оставить — без `external_dirs` он не читается.
+`config.yaml` и `cron/jobs.json` из копий `.bak-20261011`, `mv /opt/data/backups/skills-aifuture-2026-07-29 /opt/data/skills/aifuture`, удалить задачу `tools-of-the-day`. Клон `/opt/data/hub` можно оставить — без `external_dirs` он не читается.
 
 ## Вне рамок
 
