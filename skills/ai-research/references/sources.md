@@ -47,7 +47,7 @@
 |---|---|
 | Hacker News | news.ycombinator.com |
 | arXiv (cs.AI / cs.CL) | arxiv.org/list/cs.AI/recent · arxiv.org/list/cs.CL/recent |
-| Papers with Code | paperswithcode.com |
+| Hugging Face Papers | huggingface.co/papers |
 | Reddit r/MachineLearning | reddit.com/r/MachineLearning/ |
 | Reddit r/LocalLLaMA | reddit.com/r/LocalLLaMA/ |
 
@@ -77,6 +77,22 @@
 | Habr (хаб AI/ML) | habr.com/ru/hubs/artificial_intelligence/ |
 | Код (thecode.media) | thecode.media |
 | vc.ru (AI-раздел) | vc.ru/ai |
+
+---
+
+## Ярус «Инструменты» — режим `radar`
+
+> Используй для: свежих инструментов — репозиториев, скиллов, плагинов, MCP-серверов, моделей. Не для `allowed_domains`: эти источники читаются командами к API, рецепт — в [radar.md](radar.md).
+
+| Источник | Адрес |
+|---|---|
+| GitHub Search | `gh search repos` / api.github.com/search/repositories |
+| GitHub Trending | github.com/trending |
+| Show HN | hn.algolia.com/api |
+| Reddit r/LocalLLaMA · r/ClaudeAI · r/ClaudeCode | reddit.com/r/<саб>/top/.rss |
+| Hugging Face (трендовые модели) | huggingface.co/api/models?sort=trendingScore |
+| Simon Willison | simonwillison.net/atom/everything/ |
+| Trendshift · OSS Insight | trendshift.io · ossinsight.io — для ручного просмотра роста звёзд |
 
 ---
 
