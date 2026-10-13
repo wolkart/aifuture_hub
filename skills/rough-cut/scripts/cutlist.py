@@ -5,12 +5,22 @@
 sync.offset_s: audio_time = video_time + offset_s.
 """
 import json
+from pathlib import Path
 
 EPS = 0.02
 ACTIONS = {"keep", "cut", "speedup"}
-SOURCES = {"silence", "filler", "retake", "screencast", "user"}
+SOURCES = {"silence", "filler", "retake", "screencast", "gaze", "user"}
 SCENARIOS = {"camera_plus_audio", "screencast", "multicam"}
 PROFILES = {"light", "full"}
+
+
+def export_dir(video):
+    """Все артефакты — в export/ рядом с исходниками (исходники не трогаем).
+    Файл уже лежит в export/ (смонтированный mp4) — та же папка, без вложенной."""
+    parent = Path(video).resolve().parent
+    d = parent if parent.name == "export" else parent / "export"
+    d.mkdir(exist_ok=True)
+    return d
 
 
 def validate(d):

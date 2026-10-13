@@ -60,7 +60,7 @@ def main():
         out = Path(args.out)
     else:
         v = Path(d["inputs"]["video"])
-        out = v.with_name(v.stem + ".roughcut.mp4")
+        out = cutlist.export_dir(v) / (v.stem + ".roughcut.mp4")
     if out.exists() and not args.force:
         raise SystemExit(f"render: {out} уже существует (перезапись — --force)")
     subprocess.run(build_cmd(d, out), check=True)

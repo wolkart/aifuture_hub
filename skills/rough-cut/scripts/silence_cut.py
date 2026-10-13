@@ -67,7 +67,8 @@ def main():
             sync_offset.extract_pcm(args.audio))
     d = build_silence_cutlist(args.video, args.audio, offset, conf,
                               args.noise_db, args.min_dur, args.pad, args.min_cut)
-    out = Path(args.out or Path(args.video).with_suffix(".cutlist.json"))
+    v = Path(args.video)
+    out = Path(args.out or cutlist.export_dir(v) / (v.stem + ".cutlist.json"))
     with open(out, "w", encoding="utf-8") as f:
         json.dump(d, f, ensure_ascii=False, indent=2)
     cut_n = sum(1 for s in d["segments"] if s["action"] == "cut")
