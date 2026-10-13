@@ -54,6 +54,7 @@ def main():
     ap.add_argument("audio")
     ap.add_argument("--backend", choices=["auto", "mlx", "faster"], default="auto")
     ap.add_argument("--model", default=None)
+    ap.add_argument("-o", "--out", default=None, help="куда писать words.json (по умолчанию export/)")
     ap.add_argument("--_direct", action="store_true", help=argparse.SUPPRESS)
     args = ap.parse_args()
     backend = pick_backend(override=args.backend)
@@ -61,9 +62,11 @@ def main():
     if not getattr(args, "_direct"):
         os.execvp("uv", ["uv", "run", "--with", DEP[backend], "python3",
                          os.path.abspath(__file__), args.audio,
-                         "--backend", backend, "--model", model, "--_direct"])
+                         "--backend", backend, "--model", model, "--_direct"]
+                 + (["--out", os.path.abspath(args.out)] if args.out else []))
     result = run(args.audio, backend, model)
-    out_path = cutlist.export_dir(args.audio) / (Path(args.audio).name + ".words.json")
+    out_path = (Path(args.out) if args.out
+                else cutlist.export_dir(args.audio) / (Path(args.audio).name + ".words.json"))
     with open(out_path, "w", encoding="utf-8") as f:
         json.dump(result, f, ensure_ascii=False, indent=2)
     print(json.dumps(result, ensure_ascii=False))
