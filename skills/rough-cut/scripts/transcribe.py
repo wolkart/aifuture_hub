@@ -9,6 +9,9 @@ import json
 import os
 import platform
 import sys
+from pathlib import Path
+
+import cutlist
 
 DEFAULT_MODEL = {"mlx": "mlx-community/whisper-large-v3-turbo", "faster": "large-v3"}
 DEP = {"mlx": "mlx-whisper", "faster": "faster-whisper"}
@@ -60,7 +63,7 @@ def main():
                          os.path.abspath(__file__), args.audio,
                          "--backend", backend, "--model", model, "--_direct"])
     result = run(args.audio, backend, model)
-    out_path = str(args.audio) + ".words.json"
+    out_path = cutlist.export_dir(args.audio) / (Path(args.audio).name + ".words.json")
     with open(out_path, "w", encoding="utf-8") as f:
         json.dump(result, f, ensure_ascii=False, indent=2)
     print(json.dumps(result, ensure_ascii=False))

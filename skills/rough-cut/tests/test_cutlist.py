@@ -49,3 +49,19 @@ def test_timeline_skips_cuts():
         {"start": 2.0, "end": 4.0, "action": "cut", "source": "silence",
          "reason": "тишина", "confidence": 0.95}])
     assert [s["start"] for s in cutlist.timeline(d)] == [0.0, 4.0]
+
+
+def test_export_dir_next_to_sources(tmp_path):
+    video = tmp_path / "cam.mp4"
+    video.write_bytes(b"")
+    d = cutlist.export_dir(video)
+    assert d == tmp_path.resolve() / "export" and d.is_dir()
+    # смонтированный файл уже в export/ — без вложенной export/export
+    assert cutlist.export_dir(d / "cam.roughcut.mp4") == d
+
+
+def test_gaze_is_valid_cut_source():
+    d = cutlist.from_cuts(make_meta(), [
+        {"start": 2.0, "end": 2.3, "action": "cut", "source": "gaze",
+         "reason": "смотрит в сценарий до фразы", "confidence": 0.85}])
+    cutlist.validate(d)  # не бросает
