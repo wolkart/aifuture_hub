@@ -41,13 +41,14 @@ JSON-массив элементов датасета. Поля зависят �
 - `type` ← `reel`/`post`/`carousel` по `type`/`productType` (несколько медиа → carousel; есть `videoUrl` → reel)
 - `date` ← `timestamp`
 - `caption` ← `caption`
-- `views` ← `videoViewCount`/`videoPlayCount` (пусто для не-видео)
+- `views` ← `videoPlayCount` — публичный счётчик под роликом (пусто для не-видео). `videoViewCount` не брать: он в ~1,6–4 раза меньше, и разведки с разным полем не сходятся (59 413 против 165 053 на одном ролике, 2026-10-11)
 - `likes` ← `likesCount`; `comments` ← `commentsCount`
+- `multiple` ← вычислить после маппинга всей выборки автора: рилс — `views / медиана views его рилсов`, не-видео — `likes / медиана likes его не-видео`; правила — schema.md, «Ранжирование»
 - `engagement_rate` ← вычислить `(likes + comments) / max(views, 1)`, округлить до 4 знаков
 - `video_url` ← `videoUrl`; `hashtags` ← `hashtags` (или распарсить из caption)
 
 ## Ранжирование
-По `engagement_rate` (убыв.) при записи в `index.md`.
+По `multiple` (убыв.) при записи в `index.md` — см. schema.md, «Ранжирование».
 
 ## Идемпотентность
 Ключ — `id`. Повторный `scout`: обновлять существующие записи по `id`, не плодить дубли.
