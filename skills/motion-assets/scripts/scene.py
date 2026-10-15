@@ -36,6 +36,7 @@ import settings    # noqa: E402  (reel/scripts/)
 
 ALPHA_FMTS = ("yuva", "rgba", "argb", "bgra", "abgr", "gbrap", "ya")
 GREEN = "0x00FF00"
+MEDIA_EXT = (".svg", ".png", ".jpg", ".jpeg", ".webp", ".mp4", ".mov", ".m4v", ".webm")
 
 
 def list_templates():
@@ -49,10 +50,10 @@ def load_template(name):
 
 
 def resolve_paths(slots, base):
-    """Относительные пути картинок в слотах — от папки slots.json."""
+    """Относительные пути картинок и записей в слотах — от папки slots.json."""
     out = dict(slots)
     for k, v in slots.items():
-        if isinstance(v, str) and Path(v).suffix.lower() in (".svg", ".png", ".jpg", ".jpeg", ".webp"):
+        if isinstance(v, str) and Path(v).suffix.lower() in MEDIA_EXT:
             p = Path(v).expanduser()
             if not p.is_absolute() and (base / p).exists():
                 out[k] = str((base / p).resolve())
