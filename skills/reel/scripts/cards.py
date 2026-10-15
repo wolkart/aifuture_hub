@@ -105,7 +105,7 @@ class Ctx:
     """Общее для шаблонов: время по якорю, накопитель js, цвета темы."""
 
     def __init__(self, at, theme):
-        self.at, self.theme, self.js = at, theme, []
+        self.at, self.theme, self.js, self.files = at, theme, [], []
         self.light = mix(theme["secondary"], "#FFFFFF", 0.82)  # светлый текст в тон вторичного
 
     def card_in_out(self, cid, a, b):
@@ -127,6 +127,16 @@ class Ctx:
     def type_on(self, sel, text, t0, t1):
         stagger = max(0.001, (t1 - t0) / max(1, len(text)))
         self.js.append(f'tl.to("{sel} .ch", {{opacity: 1, duration: 0.01, stagger: {stagger:.4f}}}, {t0:.3f});')
+
+
+    def file(self, cid, path):
+        """Картинка из слота → копия в проект слоя; в HTML — её имя рядом с index.html."""
+        p = Path(str(path)).expanduser()
+        if not p.exists():
+            raise ValueError(f"карточка {cid}: нет файла {path}")
+        name = f"{cid}-{len(self.files)}{p.suffix.lower()}"
+        self.files.append((str(p), name))
+        return name
 
 
 def typed(text):
@@ -301,13 +311,96 @@ def t_cta(cid, a, b, s, c):
             f'{sub}</div>')
 
 
-TEMPLATES = {"tiles": t_tiles, "terminal": t_terminal, "profile": t_profile, "chips": t_chips,
+def t_sticker(cid, a, b, s, c):
+    """Наклейка поверх кадра в точке x, y (центр): эмодзи или короткий текст, влетает с пружиной
+    и поворотом — «заклеить рот» на мате, отметить жест. Не карточка: своё место в кадре."""
+    x, y, size = int(s.get("x", 540)), int(s.get("y", 1080)), int(s.get("size", 180))
+    rot = float(s.get("rotate", -10))
+    c.js.append(f'tl.fromTo("#{cid} .stk", {{scale: 0, rotation: {rot - 30}, opacity: 0}}, {{scale: 1, '
+                f'rotation: {rot}, opacity: 1, duration: 0.22, ease: "back.out(2.6)"}}, {a:.3f});')
+    return (f'<div class="stk" style="position:absolute; left:{x - size // 2}px; top:{y - size // 2}px; '
+            f'width:{size}px; height:{size}px; font-size:{int(size * 0.86)}px; line-height:{size}px; '
+            f'text-align:center; opacity:0; filter:drop-shadow(0 12px 20px rgba(0,0,0,0.55))">'
+            f'{esc(s.get("text", "🤬"))}</div>')
+
+
+def t_filmstrip(cid, a, b, s, c):
+    """Плёнка по бокам кадра: две ленты с перфорацией едут вверх (быстрее и быстрее — как
+    плёнка в проекторе), вдоль ленты вертикально — слово. Под «смонтировал», «снял», «кадр»."""
+    acc = c.theme["accent"]
+    grad = acc.get("gradient") or [acc["solid"], acc["solid"]]
+    text = esc(s.get("text", ""))
+    w = int(s.get("width", 150))
+    holes = (f"repeating-linear-gradient(180deg, transparent 0 22px, rgba(255,255,255,0.92) 22px 58px, "
+             f"transparent 58px 80px)")
+    strips = []
+    strip_bg = mix(c.theme["bg_dark"][-1], "#000000", 0.4)
+    for side, k in (("left", 0), ("right", 1)):
+        word = (f'<div class="fw" style="writing-mode: vertical-rl; transform: rotate({180 if k == 0 else 0}deg); '
+                f'font-weight:900; font-size:{int(w * 0.62)}px; letter-spacing:0.04em; line-height:1; '
+                f'background:linear-gradient(180deg,{grad[0]},{grad[-1]}); -webkit-background-clip:text; '
+                f'background-clip:text; color:transparent">{text}</div>')
+        strips.append(
+            f'<div class="fs" id="{cid}s{k}" style="position:absolute; top:0; {side}:0; width:{w}px; height:1920px; '
+            f'overflow:hidden; background:{strip_bg}; box-shadow:0 0 40px rgba(0,0,0,0.6)">'
+            f'<div id="{cid}h{k}" style="position:absolute; left:0; right:0; top:-1920px; height:3840px">'
+            f'<div style="position:absolute; left:10px; width:26px; top:0; bottom:0; border-radius:6px; '
+            f'background:{holes}"></div><div style="position:absolute; right:10px; width:26px; top:0; bottom:0; '
+            f'border-radius:6px; background:{holes}"></div></div>'
+            f'<div style="position:absolute; inset:0; display:flex; align-items:center; justify-content:center">'
+            f'{word}</div></div>')
+        dx = -w - 20 if k == 0 else w + 20
+        c.js.append(f'tl.fromTo("#{cid}s{k}", {{x: {dx}}}, {{x: 0, duration: 0.18, ease: "power3.out"}}, {a:.3f});')
+        c.js.append(f'tl.fromTo("#{cid}h{k}", {{y: 0}}, {{y: 1920, duration: {max(0.2, b - a):.3f}, '
+                    f'ease: "power2.in"}}, {a:.3f});')
+        c.js.append(f'tl.fromTo("#{cid}s{k}", {{x: 0}}, {{x: {dx}, duration: 0.16, ease: "power2.in", '
+                    f'immediateRender: false}}, {max(a + 0.2, b - 0.16):.3f});')
+    return "".join(strips)
+
+
+def t_logos_cut(cid, a, b, s, c):
+    """Иконки сервисов влетают плиткой, на cut_at их разрезает вспышка по диагонали — половинки
+    разлетаются и падают. «Не открывал CapCut и Premiere», «больше не нужен X». Иконки — файлами."""
+    icons = [c.file(cid, p) for p in s.get("icons", [])][:3]
+    size = int(s.get("size", 240))
+    top = int(s.get("top", 300))
+    cut = c.at(s["cut_at"]) if s.get("cut_at") is not None else (a + b) / 2
+    n = max(1, len(icons))
+    gap = 70
+    x0 = 540 - (n * size + (n - 1) * gap) / 2
+    acc = c.theme["accent"]["solid"]
+    parts = []
+    halves = (("polygon(0 0, 100% 0, 0 100%)", -1), ("polygon(100% 0, 100% 100%, 0 100%)", 1))
+    for i, name in enumerate(icons):
+        x = x0 + i * (size + gap)
+        for h, (clip, sgn) in enumerate(halves):
+            parts.append(f'<img id="{cid}i{i}h{h}" src="{name}" style="position:absolute; left:{x:.0f}px; top:{top}px; '
+                         f'width:{size}px; height:{size}px; object-fit:contain; clip-path:{clip}; opacity:0; '
+                         f'filter:drop-shadow(0 18px 30px rgba(0,0,0,0.5))">')
+            c.js.append(f'tl.fromTo("#{cid}i{i}h{h}", {{opacity: 0, scale: 0.4, rotation: {-14 + 28 * i}}}, '
+                        f'{{opacity: 1, scale: 1, rotation: {-6 + 12 * i}, duration: 0.3, ease: "back.out(1.8)"}}, '
+                        f'{a + i * 0.08:.3f});')
+            c.js.append(f'tl.fromTo("#{cid}i{i}h{h}", {{x: 0, y: 0, opacity: 1}}, {{x: {sgn * 120}, y: {260 + 120 * h}, '
+                        f'rotation: {sgn * 40}, opacity: 0, duration: 0.55, ease: "power2.in", '
+                        f'immediateRender: false}}, {cut + 0.06:.3f});')
+    slash = (f'<div id="{cid}sl" style="position:absolute; left:{x0 - 60:.0f}px; top:{top + size / 2 - 5:.0f}px; '
+             f'width:{n * size + (n - 1) * gap + 120:.0f}px; height:10px; border-radius:5px; background:{acc}; '
+             f'box-shadow:0 0 30px {acc}; transform-origin:0 50%; transform:rotate(-18deg) scaleX(0); opacity:0">'
+             f'</div>')
+    c.js.append(f'tl.fromTo("#{cid}sl", {{scaleX: 0, opacity: 1, rotation: -18}}, {{scaleX: 1, opacity: 1, '
+                f'rotation: -18, duration: 0.12, ease: "power3.out"}}, {cut:.3f});')
+    c.js.append(f'tl.fromTo("#{cid}sl", {{opacity: 1}}, {{opacity: 0, duration: 0.2, immediateRender: false}}, '
+                f'{cut + 0.16:.3f});')
+    return "".join(parts) + slash
+
+
+TEMPLATES = {"filmstrip": t_filmstrip, "logos_cut": t_logos_cut, "sticker": t_sticker, "tiles": t_tiles, "terminal": t_terminal, "profile": t_profile, "chips": t_chips,
              "rewrite": t_rewrite, "rows": t_rows, "compare": t_compare, "buttons": t_buttons, "cta": t_cta}
 
 
-def build(cards, at, theme, track=1):
+def build(cards, at, theme, track=1, files=None):
     """cards: [{"id"?, "template", "a", "b", "slots", "top"?}] с уже посчитанными a/b.
-    → (css, body[], js[])"""
+    → (css, body[], js[]); files — список, куда сложить (источник, имя) картинок из слотов."""
     c = Ctx(at, theme)
     body = []
     for i, cd in enumerate(cards):
@@ -321,4 +414,6 @@ def build(cards, at, theme, track=1):
                                   f'translateY({int(cd["top"]) - 190}px)"><div class="card', 1) + "</div>"
         body.append(f'<div id="{cid}" class="clip" data-start="{cd["a"]:.3f}" '
                     f'data-duration="{cd["b"] - cd["a"]:.3f}" data-track-index="{track}">{inner}</div>')
+    if files is not None:
+        files.extend(c.files)
     return css(theme), body, c.js

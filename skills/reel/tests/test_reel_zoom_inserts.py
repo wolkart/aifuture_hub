@@ -104,3 +104,43 @@ def test_relative_file_found_in_search_dirs(words, tmp_path):
     brolls, *_ = ins.resolve([{"kind": "broll", "from": 1.0, "to": 2.0, "file": "b.mp4"}], AT(words), 30.0,
                              search_dirs=[tmp_path / "none", tmp_path])
     assert brolls[0]["path"] == tmp_path / "b.mp4"
+
+
+def _cta_plan(words, with_card, with_end):
+    lib = {"assets": [{"id": "end-ig", "kind": "scene", "template": "end_card", "duration": 5.0,
+                       "files": {"mp4": "end-ig/end-ig.mp4"}}]}
+    items = []
+    if with_card:
+        items.append({"kind": "card", "template": "cta", "from": 20.0, "to": 24.0})
+    if with_end:
+        items.append({"kind": "broll", "from": 25.0, "to": 29.5, "asset": "end-ig", "in": 0.0})
+    return ins.resolve(items, AT(words), 30.0, lib, "/lib")
+
+
+@pytest.mark.parametrize("cta, card, end, level", [
+    ("code", True, False, None), ("link", False, True, None),
+    ("code", True, True, "error"), ("link", True, True, "error"),
+    ("link", True, False, "error"), ("code", False, True, "error"),
+    ("link", False, False, "warn"), ("code", False, False, None)])
+def test_one_reel_one_cta(words, cta, card, end, level):
+    """Кодовое слово и концовка-ссылка — два разных CTA: в ролике одно из двух."""
+    brolls, cards, _, problems = _cta_plan(words, card, end)
+    assert not any("ориентира" in p["text"] for p in problems)      # концовка длиннее вставки — норма
+    got = ins.check_cta(brolls, cards, cta)
+    assert (got[0]["level"] if got else None) == level, got
+
+
+def test_no_zoom_out_jump_into_text_behind(words):
+    """Вжух перед окном «текст за головой» к склейке плавно возвращается к 1,0 — без отпрыгивания."""
+    sp = [(0.0, 3.0), (3.0, 6.0)]
+    punch_word = next(w for w in words if 0.3 < w["start"] < 1.5)
+    rows = zoom.plan(sp, words, punch=[punch_word["text"]], plates=[(3.0, 6.0)])
+    assert "вжух" in rows[0]["kind"] and rows[1]["plate"]
+    assert rows[0]["end"] == 1.0 and abs(rows[1]["start_scale"] - rows[0]["end"]) < 0.05
+    assert any("scale: 1.0, duration" in j for j in rows[0]["js"])
+
+
+def test_punch_with_strength_and_bounce_back(words):
+    rows = zoom.plan([(0.0, 30.0)], words, punch=[{"word": "бесплатно", "add": 0.35, "back": 0.1}])
+    assert "1.00→1.35→1.10" in rows[0]["kind"] and rows[0]["end"] == 1.1
+    assert any("scale: 1.35" in j for j in rows[0]["js"]) and any("scale: 1.1," in j for j in rows[0]["js"])

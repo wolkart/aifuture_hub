@@ -13,8 +13,13 @@
   • окно источника задевает приватное окно из описи — ошибка (IP, ключи, токены);
   • окно источника задевает переход/наезд записи экрана — ⚠ кадр на размытом переходе;
   • окно выходит за длину источника — ошибка.
+CTA (check_cta): кодовое слово (карточка cta) и концовка-ссылка (ассет end_card) в одном
+ролике — ошибка; тип CTA ролика не совпал с планом — ошибка; тип «ссылка», а концовки
+в плане нет — ⚠.
 """
 from pathlib import Path
+
+END_CARD = "end_card"       # шаблон 3D-концовки со ссылкой в библиотеке motion-assets
 
 
 def overlaps(a0, a1, b0, b1, eps=1e-3):
@@ -85,7 +90,7 @@ def resolve(items, at, dur, library=None, library_dir=None, search_dirs=(), inse
              "n": n}
         brolls.append(r)
         lo, hi = insert_len
-        if rate == 1 and not lo <= t1 - t0 <= hi:
+        if rate == 1 and not lo <= t1 - t0 <= hi and (entry or {}).get("template") != END_CARD:
             problems.append({"level": "warn", "where": where,
                              "text": f"вставка {t1 - t0:.2f} с — вне ориентира {lo}–{hi} с"})
         if it.get("asset") and entry is None:
@@ -108,6 +113,31 @@ def resolve(items, at, dur, library=None, library_dir=None, search_dirs=(), inse
             problems.append({"level": "error", "where": f"{y['a']:.2f}",
                              "text": f"б-роллы #{x['n'] + 1} и #{y['n'] + 1} налезают друг на друга"})
     return brolls, cards, missing, problems
+
+
+def check_cta(brolls, cards, cta_type):
+    """Один ролик — один CTA. cta_type: "code" (кодовое слово в комменты, карточка cta) |
+    "link" (3D-концовка со ссылкой, ассет end_card). → problems."""
+    word = [x for x in cards if x.get("template") == "cta"]
+    link = [x for x in brolls if (x.get("entry") or {}).get("template") == END_CARD]
+    where = lambda x: f"#{x['n'] + 1} {x['a']:.2f}"  # noqa: E731
+    out = []
+    if word and link:
+        out.append({"level": "error", "where": where(link[0]),
+                    "text": "кодовое слово и концовка-ссылка в одном ролике — оставь одно из двух"})
+    elif cta_type == "link" and word:
+        out.append({"level": "error", "where": where(word[0]),
+                    "text": "CTA ролика — ссылка, а в плане карточка с кодовым словом: замени её концовкой "
+                            "end_card или поставь \"cta\": \"код\" в plan.json"})
+    elif cta_type == "code" and link:
+        out.append({"level": "error", "where": where(link[0]),
+                    "text": "CTA ролика — кодовое слово, а в плане концовка-ссылка: поставь \"cta\": "
+                            "\"ссылка\" в plan.json или убери концовку"})
+    if cta_type == "link" and not link:
+        out.append({"level": "warn", "where": "CTA",
+                    "text": "CTA — ссылка, а концовки в плане нет: "
+                            "python3 ../motion-assets/scripts/library.py find концовка"})
+    return out
 
 
 def half_windows(brolls, gap=0.05):

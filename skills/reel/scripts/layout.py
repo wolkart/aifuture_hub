@@ -1,8 +1,8 @@
 """Раскладка папки сборки. Только stdlib.
 
 export/                      ← рядом с исходниками (как у rough-cut)
-  final/                     ← только готовые ролики + README «что есть что»
-  _сборка/
+  <стем> — <метка>.mp4       ← готовый ролик, прямо здесь
+  _сборка/                   ← живёт, пока идёт работа; финал принят — удаляется (tidy.py --done)
     <стем>.cutlist.json      ← cut-list rough-cut (канон резки; имя — как у rough-cut)
     <стем>.roughcut.mp4      ← смонтированный черновик; в режиме subs — ссылка
                                roughcut.mp4 на чужой смонтированный файл
@@ -34,7 +34,7 @@ class Build:
         self.var = Path(variant_dir).resolve()
         self.root = self.var.parent
         self.export = self.root.parent
-        self.final = self.export / "final"
+        self.final = self.export          # готовые ролики — прямо в export/
         r, v = self.root, self.var
         self.cutlist = _pick(r, "*.cutlist.json", "cutlist.json")
         self.roughcut = _pick(r, "*.roughcut.mp4", "roughcut.mp4")

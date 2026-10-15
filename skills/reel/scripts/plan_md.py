@@ -105,8 +105,12 @@ def main():
         brolls, cards, missing, problems = ins.resolve(plan.get("items", []), at, dur, library, lib_dir,
                                                        search, s["edit"]["insert_len"])
         behind_res = behind_mod.resolve(plan.get("behind_text", []), at, dur)
+        if b.cutlist.exists():
+            behind_mod.clamp_to_spans(behind_res, ins.spans_from_cutlist(json.loads(b.cutlist.read_text())))
     except KeyError as e:
         raise SystemExit(f"plan_md: якорь не найден в расшифровке — {e}")
+    cta = settings_mod.cta_type(plan.get("cta"), s.get("cta_type", "code"))
+    problems += ins.check_cta(brolls, cards, cta)
     spans = ins.spans_from_cutlist(json.loads(b.cutlist.read_text())) if b.cutlist.exists() else [(0.0, dur)]
     rows = []
     if plan.get("zoom", True):
@@ -115,11 +119,12 @@ def main():
         rows = zoom.plan([(a, min(x, dur)) for a, x in spans if a < dur], words, plan.get("punch_words", []),
                          faces, plates, s["edit"]["zoom_levels"], s["edit"]["punch_add"], s["edit"]["punch_dur"])
 
-    style = "по слову" if s["captions"]["style"] == "word" else "строки"
+    style = {"word": "по слову", "caps": "капс"}.get(s["captions"]["style"], "строки")
     flags = [f"субтитры: {style}", f"акцент: {s['theme']['accent']['name']}",
              f"наезды: {'да' if plan.get('zoom', True) else 'нет'}",
              f"музыка: {'да' if plan.get('music', True) else 'нет'}",
-             f"текст за головой: {'да' if plan.get('behind_text') else 'нет'}"]
+             f"текст за головой: {'да' if plan.get('behind_text') else 'нет'}",
+             f"CTA: {'кодовое слово' if cta == 'code' else 'ссылка (3D-концовка)'}"]
     out = [f"# План: {b.stem} — {b.name} ({plan.get('mode', 'full')})", "",
            f"Длина {dur:.1f} с · " + " · ".join(flags),
            f"Под вставками {ins.coverage(brolls, dur):.1f} с из {dur:.1f}; б-роллов {len(brolls)}, "
@@ -127,7 +132,8 @@ def main():
     if plan.get("accent_words"):
         out += ["Ударные слова субтитров: " + ", ".join(plan["accent_words"]), ""]
     if plan.get("punch_words"):
-        out += ["«Вжух» на словах: " + ", ".join(plan["punch_words"]), ""]
+        out += ["«Вжух» на словах: " + ", ".join(p["word"] if isinstance(p, dict) else p
+                                                for p in plan["punch_words"]), ""]
     out += table(words, dur, brolls, cards, behind_res, rows)
     errors = [p for p in problems if p["level"] == "error"]
     warns = [p for p in problems if p["level"] == "warn"]
@@ -139,12 +145,13 @@ def main():
         out += ["", "## Нет ассета", ""] + [
             f"- {m['t']:.2f} с {first_word(words, m['t'])}: {m['want']} → карточка или motion-assets"
             for m in missing]
-    segs = captions.visible_segments(words, behind_mod.hidden_windows(behind_res))
+    c_hidden, c_keys = captions.plan_keys(plan, at, dur)
     edges = behind_mod.edges(behind_res)
-    units = (captions.word_beats(segs, dur, edges) if s["captions"]["style"] == "word"
-             else captions.line_pages(segs, dur, edges))
-    out += ["", f"## Субтитры ({len(units)})", "", "Текст на экране — проверь кодовое слово и термины:", ""]
-    out += ["    " + line for line in captions.summary(units)]
+    lines = captions.summary_parts(words, dur, s["captions"], behind_mod.hidden_windows(behind_res) + c_hidden,
+                                   edges, c_keys)
+    n_units = sum(1 for ln in lines if not ln.startswith("—"))
+    out += ["", f"## Субтитры ({n_units})", "", "Текст на экране — проверь кодовое слово и термины:", ""]
+    out += ["    " + line for line in lines]
     jumps = zoom.jumps(rows)
     small = [(i + 1, j) for i, j in enumerate(jumps) if j < 0.1 and not rows[i + 1]["plate"]]
     if small:

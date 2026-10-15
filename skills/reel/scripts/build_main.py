@@ -4,6 +4,10 @@
 Видео основы — base.mp4 варианта (если собран «текст за головой») или черновик
 roughcut.mp4. Длительность — из файла (ffprobe), куски — из cut-list rough-cut.
 Вставки half: спикер уезжает вниз на 480 px, верх занимает б-ролл, между ними шов.
+У пункта плана "enter": "down" — половина не появляется кадром, а съезжает сверху вниз
+(жест «стянуть шторку»), спикер уезжает вниз вместе с ней за ENTER_S.
+"film_roll": [{"from": <якорь>, "dur": 0.75, "cycles": 4}] — кадр-лента: кадр уезжает вверх,
+за ним едет тот же кадр, всё быстрее, как плёнка в проекторе, и встаёт на место без шва.
 
 usage: build_main.py <папка варианта> [--settings reel.settings.json] [--library <папка>]
 Затем: npx hyperframes render <вариант>/main → main.mp4 (команду печатает скрипт).
@@ -22,30 +26,61 @@ import zoom  # noqa: E402
 from layout import Build  # noqa: E402
 
 HALF_Y = 480
+ENTER_S = 0.4
+FRAME_GAP = 40      # чёрная полоса между кадрами «плёнки»
 
 
-def render_html(dur, zoom_rows, brolls, halves, seam_color, media_names):
+def roll_durations(total, cycles, ratio=0.72):
+    """Длительности проходов ленты: каждый следующий быстрее (ту-ту-ту-ту)."""
+    w = [ratio ** i for i in range(cycles)]
+    return [round(total * x / sum(w), 4) for x in w]
+
+
+def render_html(dur, zoom_rows, brolls, halves, seam_color, media_names, rolls=()):
     js, body = [], []
     for r in zoom_rows:
         js += r["js"]
     for n, r in enumerate(brolls):
         h = 960 if r["layout"] == "half" else 1920
         rate = f' data-playback-rate="{r["rate"]:g}"' if r["rate"] != 1 else ""
+        if r.get("enter") == "down" and r["layout"] == "half":
+            js.append(f'tl.fromTo("#br{n}", {{y: -960}}, {{y: 0, duration: {ENTER_S}, ease: "power3.out"}}, '
+                      f'{r["a"]:.3f});')
         body.append(f'<video id="br{n}" src="{media_names[n]}" data-start="{r["a"]:.3f}" '
                     f'data-duration="{r["b"] - r["a"]:.3f}" data-media-start="{r["in"]:.3f}"{rate} '
                     f'data-track-index="{1 + n % 2}" muted playsinline style="position:absolute; left:0; top:0; '
                     f'width:1080px; height:{h}px; object-fit:cover; object-position:{r["pos"]}; z-index:2"></video>')
     for k, (a, b) in enumerate(halves):
-        js.append(f'tl.set("#cam", {{y: {HALF_Y}}}, {a:.3f}); tl.set("#cam", {{y: 0}}, {b:.3f});')
+        slide = any(r.get("enter") == "down" and abs(r["a"] - a) < 0.02 for r in brolls)
+        if slide:   # спикер уезжает вниз вместе с въезжающей сверху половиной
+            js.append(f'tl.fromTo("#cam", {{y: 0}}, {{y: {HALF_Y}, duration: {ENTER_S}, ease: "power3.out"}}, '
+                      f'{a:.3f}); tl.set("#cam", {{y: 0}}, {b:.3f});')
+        else:
+            js.append(f'tl.set("#cam", {{y: {HALF_Y}}}, {a:.3f}); tl.set("#cam", {{y: 0}}, {b:.3f});')
         body.append(f'<div id="seam{k}" class="clip" data-start="{a:.3f}" data-duration="{b - a:.3f}" '
                     f'data-track-index="3" style="position:absolute; left:0; top:956px; width:1080px; height:8px; '
                     f'background:{seam_color}; inset:auto; z-index:3"></div>')
     css = """
 #cam { position: absolute; inset: 0; will-change: transform; z-index: 1; }
 #cam video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+#reel { position: absolute; inset: 0; background: #000; will-change: transform; }
 """
-    cam = (f'<div id="cam" class="inner"><video id="base" src="base.mp4" data-start="0" '
-           f'data-duration="{dur:.3f}" data-track-index="0" playsinline muted></video></div>')
+    copies, step = [], 1920 + FRAME_GAP
+    for k, (ra, rd, cycles) in enumerate(rolls):
+        for vid, off in ((f"fu{k}", -step), (f"fd{k}", step)):
+            copies.append(f'<video id="{vid}" src="base.mp4" data-start="{ra:.3f}" data-duration="{rd:.3f}" '
+                          f'data-media-start="{ra:.3f}" data-track-index="{5 + k}" playsinline muted '
+                          f'style="inset:auto; left:0; top:{off}px; width:1080px; height:1920px"></video>')
+        t = ra
+        durs = roll_durations(rd, cycles)
+        for i, d in enumerate(durs):
+            ease = "power2.out" if i == len(durs) - 1 else ("power2.in" if i == 0 else "none")
+            js.append(f'tl.fromTo("#reel", {{y: 0}}, {{y: {-step}, duration: {d}, ease: "{ease}", '
+                      f'immediateRender: false}}, {t:.3f});')
+            t += d
+        js.append(f'tl.set("#reel", {{y: 0}}, {t:.3f});')
+    cam = (f'<div id="cam" class="inner"><div id="reel"><video id="base" src="base.mp4" data-start="0" '
+           f'data-duration="{dur:.3f}" data-track-index="0" playsinline muted></video>{"".join(copies)}</div></div>')
     return hf.page(css, cam + "\n" + "\n".join(body), "\n".join(js), dur, bg="#000")
 
 
@@ -97,9 +132,13 @@ def main():
         name = f"{r.get('asset') or Path(r['path']).stem}{Path(r['path']).suffix}"
         files[name] = r["path"]
         media.append(name)
+    rolls = [(round(at(r["from"]), 3), float(r.get("dur", 0.75)), int(r.get("cycles", 4)))
+             for r in plan.get("film_roll", [])]
     hf.setup_project(b.main, s["theme"], [(src, name) for name, src in files.items()])
     (b.main / "index.html").write_text(
-        render_html(dur, rows, brolls, halves, s["theme"]["bg_dark"][-1], media), encoding="utf-8")
+        render_html(dur, rows, brolls, halves, s["theme"]["bg_dark"][-1], media, rolls), encoding="utf-8")
+    for ra, rd, cyc in rolls:
+        print(f"кадр-лента: {ra:.2f}–{ra + rd:.2f} с, {cyc} прохода, всё быстрее")
 
     for r in rows:
         print(f"{r['i']:2d} {r['a']:6.2f}–{r['b']:6.2f} | {r['kind']:28s} | центр {r['origin']}")

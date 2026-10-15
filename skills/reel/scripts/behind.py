@@ -8,12 +8,18 @@
 В plan.json:
   "behind_text": [
     {"from": <якорь>, "to": <якорь>|"end", "subs_from": <якорь>?,   ← субтитры вернутся с этого слова
+     "fade_in": 0.3?,                                                 ← фон растворяется за 0,3 с («убери фон»)
      "phrases": [
        {"lines": [{"size": "l1", "words": [{"text": "Одна", "at": <якорь>}]},
                   {"size": "l2", "words": [{"text": "строка", "at": <якорь>, "color": "secondary"}]}],
         "strike": {"line": 0, "at": <якорь>}}   ← перечеркнуть строку (опционально)
      ]}]
 Фраза держится до начала следующей (или до конца окна). size: lead | l1 | l2 | huge.
+"type": 0.6 у строки — слова печатаются по буквам за столько секунд (звук «type» — в sfx).
+Окно текста не переходит через склейку: build_front обрезает его концом куска (clamp_to_spans),
+иначе на следующем дубле ещё висит подложка с текстом.
+"top": px у строки — своя высота: чтобы текст стоял ЗА головой, а не над ней, строку опускают
+на уровень кепки и лба — голова перекрывает середину слова (huge: top ≈ 590).
 color: secondary | accent | без цвета (белый).
 """
 import html
@@ -33,6 +39,7 @@ def css(theme):
 .plate {{ background: radial-gradient(ellipse 85% 60% at 50% 38%, {lighten(bg0)} 0%, {bg0} 30%, {bg1} 85%); opacity: 0; }}
 .hero {{ position: absolute; left: 0; right: 0; text-align: center; letter-spacing: -0.02em; line-height: 1; }}
 .hero .w {{ display: inline-block; opacity: 0; }}
+.hero .ch {{ opacity: 0; }}
 .lead {{ top: 215px; font-size: 84px; font-weight: 800; }}
 .l1 {{ top: 300px; font-size: 112px; font-weight: 800; }}
 .l2 {{ top: 425px; font-size: 158px; font-weight: 900; }}
@@ -52,7 +59,7 @@ def resolve(behind, at, dur):
         b = dur if win.get("to") in (None, "end") else at(win["to"])
         phrases = []
         for ph in win.get("phrases", []):
-            lines = [{"size": ln.get("size", "l1"),
+            lines = [{"size": ln.get("size", "l1"), "top": ln.get("top"), "type": ln.get("type"),
                       "words": [{"text": w["text"], "t": at(w.get("at", a)), "color": w.get("color")}
                                 for w in ln.get("words", [])]} for ln in ph.get("lines", [])]
             starts = [w["t"] for ln in lines for w in ln["words"]]
@@ -64,8 +71,25 @@ def resolve(behind, at, dur):
         for i, ph in enumerate(phrases):
             ph["b"] = phrases[i + 1]["a"] - 0.02 if i + 1 < len(phrases) else b
         subs_from = at(win["subs_from"]) if win.get("subs_from") is not None else b
-        out.append({"a": a, "b": b, "subs_from": subs_from, "phrases": phrases})
+        out.append({"a": a, "b": b, "subs_from": subs_from, "phrases": phrases,
+                    "fade_in": float(win.get("fade_in", 0))})
     return out
+
+
+def clamp_to_spans(resolved, spans, pad=0.03):
+    """Окно и его фразы кончаются вместе с куском монтажа, в котором стоит последнее слово
+    текста за головой: окно может начаться в одном дубле («убери фон») и продолжиться в
+    следующем («текст за мной»), но на дубль после текста не переходит."""
+    for win in resolved:
+        last = max([w["t"] for ph in win["phrases"] for ln in ph["lines"] for w in ln["words"]] or [win["a"]])
+        end = next((b for a, b in spans if a - 0.02 <= last < b), None)
+        if end is None or win["b"] <= end - pad:
+            continue
+        win["b"] = round(end - pad, 3)
+        win["subs_from"] = min(win["subs_from"], win["b"])
+        for ph in win["phrases"]:
+            ph["b"] = min(ph["b"], win["b"])
+    return resolved
 
 
 def hidden_windows(resolved):
@@ -84,7 +108,11 @@ def build(resolved, theme):
     for k, win in enumerate(resolved):
         pid = f"plate{k + 1}"
         body.append(clip(pid, win["a"], win["b"], "", 0, "plate"))
-        js.append(f'tl.set("#{pid}", {{opacity: 1}}, {win["a"]:.3f});')
+        if win.get("fade_in"):   # комната растворяется в подложку, а не пропадает кадром
+            js.append(f'tl.fromTo("#{pid}", {{opacity: 0}}, {{opacity: 1, duration: {win["fade_in"]:.2f}, '
+                      f'ease: "power1.inOut"}}, {win["a"]:.3f});')
+        else:
+            js.append(f'tl.set("#{pid}", {{opacity: 1}}, {win["a"]:.3f});')
         windows.append([round(win["a"], 3), round(win["b"], 3)])
         for j, ph in enumerate(win["phrases"]):
             hid = f"h{k + 1}{chr(97 + j)}"
@@ -93,14 +121,24 @@ def build(resolved, theme):
                 parts = []
                 for wi, w in enumerate(ln["words"]):
                     cls = f'w {w["color"]}' if w["color"] else "w"
-                    parts.append(f'<span class="{cls}" id="{hid}w{li}{wi}">{html.escape(w["text"])}</span>')
+                    inner = html.escape(w["text"])
+                    if ln.get("type"):   # печать: каждая буква — свой span
+                        inner = "".join(f'<span class="ch">{html.escape(ch)}</span>' for ch in w["text"])
+                    parts.append(f'<span class="{cls}" id="{hid}w{li}{wi}">{inner}</span>')
                 spans = " ".join(parts)
                 if ph["strike"] and ph["strike"]["line"] == li:
                     spans = f'<span class="sk">{spans}<i class="strike"></i></span>'
-                rows.append(f'<div class="hero {ln["size"]}">{spans}</div>')
+                top = f' style="top:{int(ln["top"])}px"' if ln.get("top") is not None else ""
+                rows.append(f'<div class="hero {ln["size"]}"{top}>{spans}</div>')
             body.append(clip(hid, ph["a"], ph["b"], "".join(rows), 1))
             for li, ln in enumerate(ph["lines"]):
                 for wi, w in enumerate(ln["words"]):
+                    if ln.get("type"):
+                        n = max(1, len(w["text"]))
+                        js.append(f'tl.set("#{hid}w{li}{wi}", {{opacity: 1}}, {w["t"]:.3f});')
+                        js.append(f'tl.fromTo("#{hid}w{li}{wi} .ch", {{opacity: 0}}, {{opacity: 1, duration: 0.01, '
+                                  f'stagger: {float(ln["type"]) / n:.4f}}}, {w["t"]:.3f});')
+                        continue
                     js.append(f'tl.fromTo("#{hid}w{li}{wi}", {{opacity: 0, y: 34, scale: 0.92, filter: "blur(14px)"}}, '
                               f'{{opacity: 1, y: 0, scale: 1, filter: "blur(0px)", duration: 0.2, ease: "power3.out"}}, '
                               f'{w["t"]:.3f});')

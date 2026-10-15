@@ -6,7 +6,7 @@
 (references/editing-rules.md, «Проверка») и чинит найденное ДО показа автору.
 Перемотка -ss после -i: медленнее, зато кадр тот, что в ролике.
 
-usage: check_frames.py <папка варианта> [--video export/final/….mp4] [--cols 4]
+usage: check_frames.py <папка варианта> [--video export/….mp4] [--cols 4]
 Выход: <вариант>/check/лист-01.png … (удаляются tidy.py после заморозки).
 """
 import argparse
