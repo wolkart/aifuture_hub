@@ -37,6 +37,14 @@ def frame_ranges(windows, fps=FPS, warm=WARM, tail=TAIL):
     return out
 
 
+def extract_cmd(src, f0, f1, out_pattern, fps=FPS):
+    """Кадры f0…f1 на сетке fps ролика. Черновик бывает 50 к/с (камера), а маска и слои — 30:
+    без fps-фильтра подряд идущие кадры 50 к/с нумеруются как 30 к/с, и вырезанный человек
+    плывёт медленнее звука (за 4 с окна отстаёт на 1,5 с). -ss после -i: кадр точный."""
+    return ["ffmpeg", "-y", "-v", "error", "-i", str(src), "-ss", f"{(f0 - 1) / fps:.4f}",
+            "-vf", f"fps={fps}", "-frames:v", str(f1 - f0 + 1), "-start_number", str(f0), str(out_pattern)]
+
+
 def gaps(produced, total):
     """Номера кадров 1..total, которых нет среди готовых — их заполнят ссылки на пустой кадр."""
     have = set(produced)
@@ -61,10 +69,7 @@ def main():
     with torch.no_grad():
         for f0, _first, f1 in frame_ranges(windows):
             tmp = Path(tempfile.mkdtemp())
-            # -ss после -i: медленнее, но кадр точный
-            subprocess.run(["ffmpeg", "-y", "-v", "error", "-i", str(b.roughcut), "-ss", f"{(f0 - 1) / FPS:.4f}",
-                            "-frames:v", str(f1 - f0 + 1), "-start_number", str(f0), str(tmp / "f_%05d.png")],
-                           check=True)
+            subprocess.run(extract_cmd(b.roughcut, f0, f1, tmp / "f_%05d.png"), check=True)
             rec = [None] * 4
             for n in range(f0, f1 + 1):
                 p = tmp / f"f_{n:05d}.png"

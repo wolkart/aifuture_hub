@@ -111,9 +111,31 @@ def setup_project(project_dir, theme, extra=()):
     return fonts
 
 
+ALPHA_FRAME_MB = 8.3      # кадр 1080×1920 с альфой во временной папке (замер HyperFrames)
+
+
+def alpha_needs_one_worker(project_dir, out, fmt, fps=FPS):
+    """Прозрачный рендер в несколько потоков пишет каждый кадр PNG на диск (~8 МБ на кадр) и
+    падает, если места меньше. В один поток кадры идут сразу в файл — медленнее, но без
+    диска. → True, если места не хватит с запасом 15%."""
+    if fmt not in ("webm", "mov"):
+        return False
+    import re
+    page = Path(project_dir) / "index.html"
+    m = re.search(r'data-composition-id="main"[^>]*data-duration="([\d.]+)"', page.read_text(encoding="utf-8")) \
+        if page.exists() else None
+    if not m:
+        return False
+    need_mb = float(m.group(1)) * fps * ALPHA_FRAME_MB * 1.15
+    free_mb = shutil.disk_usage(Path(out).resolve().parent).free / 2 ** 20
+    return free_mb < need_mb
+
+
 def render_cmd(project_dir, out, fmt="mp4", quality=None, fps=FPS):
     cmd = ["npx", "--yes", f"hyperframes@{HF_VERSION}", "render", str(project_dir),
            "--output", str(out), "--fps", str(fps), "--format", fmt]
+    if alpha_needs_one_worker(project_dir, out, fmt, fps):
+        cmd += ["--workers", "1"]
     if quality:
         cmd += ["--quality", quality]
     return cmd

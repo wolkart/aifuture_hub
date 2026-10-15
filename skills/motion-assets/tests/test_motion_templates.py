@@ -35,6 +35,8 @@ CUSTOM = {
                 "badge": "AI", "context": ""},
     "flip_board": {"from": 12, "to": 0, "unit": "мин", "notes": [["Отправлено", "10:00"]],
                    "headline": "Минус *12* минут", "subline": ""},
+    "end_card": {"cta": "Ссылка\nв *описании*", "link": "site.example/very-long-link-name",
+                 "highlight": "click", "pointer": "cursor", "name": "Канал", "glow": "accent"},
 }
 
 
@@ -196,6 +198,89 @@ def test_flip_board_stack_not_text_swap(theme):
     r = tpl("flip_board").build({}, theme)
     assert r["body"].count('class="d" id="d') == 4               # 3, 2, 1, 0 стопкой
     assert r["js"].count("rotationX: -90") == 3
+
+
+def png(path, w, h):
+    """Минимальный PNG-заголовок нужного размера (размер читается из IHDR)."""
+    import struct
+    path.write_bytes(b"\x89PNG\r\n\x1a\n" + struct.pack(">I", 13) + b"IHDR" + struct.pack(">II", w, h)
+                     + b"\x08\x02\x00\x00\x00" + b"\x00" * 4)
+    return path
+
+
+@pytest.mark.parametrize("hl", ["pop", "click", "zoom"])
+def test_end_card_highlights(hl, theme):
+    r = tpl("end_card").build({"highlight": hl}, theme)
+    assert ('id="bub"' in r["body"]) == (hl == "click")
+    assert ('id="pill"' in r["body"]) == (hl != "click")
+    assert ('id="scrim"' in r["body"]) == (hl == "zoom")
+    whats = " ".join(e["what"] for e in r["events"])
+    assert "ссылка" in whats or "ссылк" in whats
+    assert "кодов" in r["describes"] and "без кодового слова" in r["describes"]
+
+
+def test_end_card_has_no_code_word_slot():
+    """Концовка-ссылка — анти-кодовое слово: слота под СЛОВО нет и не будет."""
+    slots = set(tpl("end_card").SLOTS)
+    assert not slots & {"word", "code", "code_word", "кодовое_слово"}
+
+
+def test_end_card_pointer_auto_and_bad_values(theme):
+    t = tpl("end_card")
+    assert 'class="cur"' in t.build({"highlight": "click"}, theme)["body"]
+    assert 'id="tap"' in t.build({"highlight": "pop"}, theme)["body"]
+    assert 'id="ptr"' not in t.build({"pointer": "none"}, theme)["body"]
+    with pytest.raises(ValueError):
+        t.build({"highlight": "wobble"}, theme)
+    with pytest.raises(ValueError):
+        t.build({"pointer": "laser"}, theme)
+
+
+def test_end_card_screenshot_geometry(tmp_path, theme):
+    t = tpl("end_card")
+    shot = png(tmp_path / "профиль.png", 576, 1280)
+    assert t.image_size(shot) == (576, 1280)
+    r = t.build({"profile": str(shot), "crop": [0, 62, 576, 380], "link_box": [22, 409, 157, 25],
+                 "tone": "light"}, theme)
+    assert r["files"] == [(str(shot), "profile.png")] and 'src="profile.png"' in r["body"]
+    # шапка 576 px → карточка 900 px: масштаб 1.5625, скриншот сдвинут на обрезку
+    assert "width: 900px; height: 594px" in r["css"] and "top: -96.9px" in r["css"]
+    with pytest.raises(ValueError):            # без места ссылки плашку не к чему привязать
+        t.build({"profile": str(shot)}, theme)
+    with pytest.raises(ValueError):
+        t.build({"profile": str(tmp_path / "нет.png"), "link_box": [0, 0, 1, 1]}, theme)
+
+
+def test_end_card_jpeg_size(tmp_path):
+    import struct
+    sof = b"\xff\xc0" + struct.pack(">HBHH", 17, 8, 1280, 576) + b"\x00" * 10
+    jpg = tmp_path / "a.jpg"
+    jpg.write_bytes(b"\xff\xd8" + b"\xff\xe0" + struct.pack(">H", 4) + b"\x00\x00" + sof)
+    assert tpl("end_card").image_size(jpg) == (576, 1280)
+
+
+@pytest.mark.parametrize("lcx", [0, 120, 468, 820, 936])
+def test_end_card_pill_stays_in_frame(lcx):
+    """Плашка над карточкой с учётом перспективы не вылезает за кадр, где бы ни была ссылка."""
+    t = tpl("end_card")
+    ow, pw, z = 936, 440, 170
+    x = t.pill_x(lcx, ow, pw, z)
+    f = t.PERSPECTIVE / (t.PERSPECTIVE - z)
+    fx = c.W / 2 + ((c.W - ow) / 2 + x - c.W / 2) * f
+    assert fx - pw * f / 2 >= 69.9 and fx + pw * f / 2 <= c.W - 69.9
+
+
+@pytest.mark.integration
+def test_end_card_frame_from_recording(tmp_path, theme, monkeypatch):
+    import subprocess
+    monkeypatch.setenv("HOME", str(tmp_path))
+    rec = tmp_path / "профиль.mp4"
+    subprocess.run(["ffmpeg", "-y", "-v", "error", "-f", "lavfi", "-i", "color=c=white:s=320x640:d=1",
+                    "-pix_fmt", "yuv420p", str(rec)], check=True)
+    r = tpl("end_card").build({"profile": str(rec), "profile_at": 0.5, "link_box": [10, 500, 120, 20]}, theme)
+    src, name = r["files"][0]
+    assert name == "profile.png" and src.endswith(".png") and "профиль-0.50" in src
+    assert 'background: #FFFFFF' in r["css"]           # белая запись → светлая плашка (tone auto)
 
 
 # ── общий модуль ─────────────────────────────────────────────────────────────

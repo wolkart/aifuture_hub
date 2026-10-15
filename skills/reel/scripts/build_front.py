@@ -20,6 +20,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import behind as behind_mod  # noqa: E402
 import captions  # noqa: E402
 import cards as cards_mod  # noqa: E402
+import glyphs  # noqa: E402
 import hf  # noqa: E402
 import inserts as ins  # noqa: E402
 import settings as settings_mod  # noqa: E402
@@ -31,6 +32,8 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("variant")
     ap.add_argument("--settings", default=None)
+    ap.add_argument("--allow-fallback", action="store_true",
+                    help="собрать, даже если букв нет в шрифте темы (нарисуются чужим шрифтом)")
     args = ap.parse_args()
 
     b = Build(args.variant)
@@ -45,6 +48,9 @@ def main():
     hidden, edges = [], []
     if plan.get("behind_text"):
         res = behind_mod.resolve(plan["behind_text"], at, dur)
+        if b.cutlist.exists():   # окно текста не переживает склейку
+            import json as _json
+            behind_mod.clamp_to_spans(res, ins.spans_from_cutlist(_json.loads(b.cutlist.read_text())))
         css, body, js, windows = behind_mod.build(res, theme)
         fonts = hf.setup_project(b.behind, theme)
         (b.behind / "index.html").write_text(hf.page(css, "\n".join(body), "\n".join(js), dur, fonts),
@@ -59,20 +65,35 @@ def main():
         if "б-ролл" not in p["text"] and "ассет" not in p["text"]:
             print(f"{'✗' if p['level'] == 'error' else '⚠'} {p['where']}: {p['text']}")
     halves = ins.half_windows(brolls)
-    c_css, c_body, c_js = cards_mod.build(card_items, at, theme) if card_items else ("", [], [])
-    s_css, s_body, s_js, units = captions.build(words, dur, s["captions"], theme, hidden, edges, halves,
-                                                plan.get("accent_words", []))
-    fonts = hf.setup_project(b.front, theme)
+    c_files = []
+    c_css, c_body, c_js = cards_mod.build(card_items, at, theme, files=c_files) if card_items else ("", [], [])
+    c_hidden, c_keys = captions.plan_keys(plan, at, dur)
+    shown = captions.insert_words(captions.replace_words(words, plan.get("captions_replace")),
+                                  captions.plan_inserts(plan, at))
+    s_css, s_body, s_js, units = captions.build(shown, dur, s["captions"], theme, hidden + c_hidden, edges, halves,
+                                                plan.get("accent_words", []), c_keys)
+    fonts = hf.setup_project(b.front, theme, extra=c_files)
     (b.front / "index.html").write_text(
         hf.page(c_css + s_css, "\n".join(c_body + s_body), "\n".join(c_js + s_js), dur, fonts),
         encoding="utf-8")
 
-    style = "по слову" if s["captions"]["style"] == "word" else "строки"
+    style = {"word": "по слову", "caps": "капс"}.get(s["captions"]["style"], "строки")
     print(f"субтитры: {style}, акцент «{theme['accent']['name']}», единиц {len(units)}; карточек {len(card_items)}")
-    for line in captions.summary(units):
+    for line in captions.summary_parts(shown, dur, s["captions"], hidden + c_hidden, edges, c_keys):
         print(line)
     if plan.get("behind_text"):
         print("рендер: " + " ".join(hf.render_cmd(b.behind, b.behind_webm, "webm")))
+    bad = False
+    for where, page in (("front", b.front / "index.html"), ("behind", b.behind / "index.html")):
+        if where == "behind" and not plan.get("behind_text"):
+            continue
+        res = glyphs.check(page.read_text(encoding="utf-8"), theme["font_main"], theme["font_display"])
+        for line in glyphs.report(res, where):
+            print(line)
+        bad = bad or bool(res["missing"])
+    if bad and not args.allow_fallback:
+        raise SystemExit("build_front: буквы не из шрифта темы — замени слово/символ или шрифт "
+                         "(собрать как есть — --allow-fallback)")
     print("рендер: " + " ".join(hf.render_cmd(b.front, b.front_webm, "webm")))
 
 

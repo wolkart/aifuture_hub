@@ -85,3 +85,25 @@ def test_load_env_does_not_override(tmp_path, monkeypatch):
     monkeypatch.setenv("REEL_SETTINGS", "/from/shell")
     settings.load_env(env)
     assert os.environ["REEL_SETTINGS"] == "/from/shell"
+
+
+def test_cta_type_from_settings_and_per_reel():
+    import settings as st
+    assert st.cta_type("ссылка") == "link" and st.cta_type("Код") == "code"
+    assert st.cta_type(None) == "code" and st.cta_type("опечатка", "link") == "link"
+    assert st.resolve({"cta": {"тип": "ссылка"}}, ".")["cta_type"] == "link"
+    assert st.resolve({}, ".")["cta_type"] == "code"
+
+
+def test_scripts_compile_with_system_python():
+    """Слои собирает системный python3 (на маке 3.9), а тесты гоняет uv на свежем: синтаксис
+    новее системного (кавычки внутри f-строки, PEP 701) проходил тесты и ронял сборку."""
+    import shutil
+    import subprocess
+    from pathlib import Path
+    py = shutil.which("python3")
+    if not py:
+        return
+    for f in sorted((Path(__file__).parent.parent / "scripts").glob("*.py")):
+        r = subprocess.run([py, "-m", "py_compile", str(f)], capture_output=True, text=True)
+        assert r.returncode == 0, f"{f.name}: {r.stderr.strip()[-300:]}"

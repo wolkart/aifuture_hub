@@ -76,11 +76,6 @@ def test_parse_loudnorm():
     assert d["input_i"] == -23.54 and d["input_tp"] == -4.1 and "normalization_type" not in d
 
 
-def test_readme_rows():
-    text = composite.readme_rows({"C1 — v4.mp4": {"variant": "v4", "label": "по слову", "duration": 36.6}})
-    assert "`C1 — v4.mp4` | 36.6 с. по слову (вариант v4)" in text
-
-
 def test_matte_frame_ranges_and_gaps():
     assert matte.frame_ranges([[1.0, 2.0]], fps=30) == [(16, 31, 63)]  # t=1.0 — кадр 31
     assert matte.frame_ranges([[0.0, 0.5]], fps=30) == [(1, 1, 18)]
@@ -107,25 +102,60 @@ def test_plan_md_gaps():
     assert plan_md.gaps([(0.0, 7.9)], 8.0) == []
 
 
-def test_tidy_plan(tmp_path):
+def _export_with_build(tmp_path):
+    """export/ с роликом, мусором, старой final/ и двумя вариантами; исходники — рядом."""
+    src = tmp_path / "C1.MP4"
+    src.write_bytes(b"video")
+    (tmp_path / "C1.mov").write_bytes(b"sound")
     ex = tmp_path / "export"
     (ex / "final").mkdir(parents=True)
-    (ex / "final" / "x — v4.mp4").write_bytes(b"1")
-    (ex / "final" / "notes.txt").write_text("x")
-    (ex / "C1.cutlist.json").write_text("{}")
+    (ex / "x — v4.mp4").write_bytes(b"1")
+    (ex / "final" / "old — v2.mp4").write_bytes(b"1")
+    (ex / "final" / "README.md").write_text("x")
+    (ex / "notes.txt").write_text("x")
     b = ex / "_сборка"
+    b.mkdir()
+    (b / "C1.cutlist.json").write_text(json.dumps({"inputs": {"video": str(src), "audio": "C1.mov"}}))
     for v in ("v2", "v4"):
         (b / v / "main").mkdir(parents=True)
         (b / v / "plan.json").write_text("{}")
         (b / v / "main" / "index.html").write_text("")
         (b / v / "main" / "broll.mp4").write_bytes(b"123")
     (b / "v4" / "matte").mkdir()
+    return ex
+
+
+def test_tidy_plan(tmp_path):
+    ex = _export_with_build(tmp_path)
     acts = {(a, p.relative_to(ex).as_posix()) for a, p, _, _ in tidy.plan_tidy(ex, keep=["v4"])}
-    assert ("move", "C1.cutlist.json") in acts and ("move", "final/notes.txt") in acts
+    assert ("move", "notes.txt") in acts and ("move", "final/README.md") in acts
+    assert ("move", "final/old — v2.mp4") in acts  # старая раскладка: ролик поднимается в export/
     assert ("delete", "_сборка/v2") in acts
     assert ("delete", "_сборка/v4/matte") in acts and ("delete", "_сборка/v4/main/broll.mp4") in acts
     assert not any(p.endswith("index.html") or p.endswith("plan.json") for _, p in acts)
-    assert not any(p == "final/x — v4.mp4" for _, p in acts)
+    assert not any(p == "x — v4.mp4" for _, p in acts)
+
+
+def test_tidy_done_keeps_only_reels_and_asks_about_sources(tmp_path):
+    ex = _export_with_build(tmp_path)
+    assert tidy.sources(ex) == [(tmp_path / "C1.MP4").resolve(), (tmp_path / "C1.mov").resolve()]
+    acts = {(a, p.name) for a, p, _, _ in tidy.plan_done(ex)}
+    assert ("delete", "_сборка") in acts and ("delete", "notes.txt") in acts
+    assert ("move", "old — v2.mp4") in acts and ("delete", "README.md") in acts
+    assert not any(n in ("C1.MP4", "C1.mov", "x — v4.mp4") for _, n in acts)  # исходники — только по «да»
+    subprocess.run([sys.executable, str(SCRIPTS / "tidy.py"), str(ex), "--done", "--apply"], check=True, capture_output=True)
+    assert sorted(p.name for p in ex.iterdir()) == ["old — v2.mp4", "x — v4.mp4"]
+    assert (tmp_path / "C1.MP4").exists() and (tmp_path / "C1.mov").exists()
+
+
+def test_tidy_done_sources_after_yes(tmp_path):
+    ex = _export_with_build(tmp_path)
+    subprocess.run([sys.executable, str(SCRIPTS / "tidy.py"), str(ex), "--done", "--sources", "--apply"],
+                   check=True, capture_output=True)
+    assert not (tmp_path / "C1.MP4").exists() and not (tmp_path / "C1.mov").exists()
+    assert (ex / "x — v4.mp4").exists()
+    r = subprocess.run([sys.executable, str(SCRIPTS / "tidy.py"), str(ex), "--sources"], capture_output=True)
+    assert r.returncode != 0  # без --done исходники не трогаются
 
 
 def test_tidy_dry_run_changes_nothing(tmp_path):
@@ -144,7 +174,7 @@ def test_layout_picks_rough_cut_names(tmp_path):
     (root / "C9.roughcut.mp4").write_bytes(b"")
     b = Build(root / "v1")
     assert b.cutlist.name == "C9.cutlist.json" and b.roughcut.name == "C9.roughcut.mp4"
-    assert b.stem == "C9" and b.final == tmp_path / "export" / "final"
+    assert b.stem == "C9" and b.final == tmp_path / "export"
 
 
 def test_hf_page_and_render_cmd():
@@ -197,3 +227,78 @@ def test_build_front_and_plan_md_end_to_end(tmp_path, clip_mp4, settings_file, m
     assert "серверная стойка → карточка или motion-assets" in md
     html = (v / "front" / "index.html").read_text()
     assert 'id="c1"' in html and "СЛОВО" in html and (v / "front" / "assets" / "main.ttf").exists()
+
+
+def test_music_level_envelope_expr():
+    e = composite.level_expr([(0.0, -10.0, 0.01), (24.3, 8.0, 0.3), (26.0, 0.0, 0.8)])
+    assert e.startswith("if(lt(t,0.000),0.0") and e.rstrip(")").endswith(",0.0")
+    assert "if(lt(t,24.300),-10.0" in e and "(t-26.000)/0.800" in e
+    cmd = composite.final_cmd("v.mp4", None, "voice.mp4", "m.m4a", "out.mp4", 30.0, 1.0, -3.0,
+                         levels=[(1.0, 6.0, 0.5)])
+    fc = cmd[cmd.index("-filter_complex") + 1]
+    assert "volume=-3.0dB,volume='pow(10,(" in fc and "eval=frame" in fc
+
+
+def test_matte_frames_on_reel_fps_grid():
+    """Черновик с камеры 50 к/с: кадры маски обязаны браться на сетке 30 к/с, иначе человек отстаёт."""
+    import matte
+    cmd = matte.extract_cmd("rc.mp4", 871, 1001, "out/f_%05d.png")
+    assert cmd[cmd.index("-vf") + 1] == "fps=30"
+    assert cmd[cmd.index("-ss") + 1] == f"{870 / 30:.4f}" and cmd.index("-ss") > cmd.index("-i")
+
+
+def test_final_mixes_sfx_track():
+    cmd = composite.final_cmd("v.mp4", "f.webm", "voice.mp4", "m.m4a", "o.mp4", 30.0, 1.0, -3.0, sfx="sfx.wav")
+    fc = cmd[cmd.index("-filter_complex") + 1]
+    assert "sfx.wav" in cmd and "[vo][mu][sx]amix=inputs=3" in fc
+    cmd = composite.final_cmd("v.mp4", None, "voice.mp4", None, "o.mp4", 30.0, 1.0, None, sfx="sfx.wav")
+    assert "[vo][sx]amix=inputs=2" in cmd[cmd.index("-filter_complex") + 1]
+
+
+def test_sfx_synth_catalog_and_bed():
+    import importlib.util
+    if importlib.util.find_spec("numpy") is None:
+        pytest.skip("numpy только в uv-окружении sfx.py")
+    import sfx
+    for name in sfx.SOUNDS:
+        y = sfx.synth(name)
+        assert y.ndim == 2 and y.shape[1] == 2 and 0.03 < len(y) / sfx.SR < 1.5 and abs(y).max() <= 1.0001
+    bed = sfx.place([(0.5, "whoosh", -10, None), (1.0, "type", -12, 0.6)], 3.0)
+    assert bed.shape == (3 * sfx.SR, 2) and abs(bed).max() < 0.5
+
+
+def test_film_roll_copies_and_accelerating_passes():
+    import build_main
+    durs = build_main.roll_durations(0.8, 4)
+    assert abs(sum(durs) - 0.8) < 1e-3 and all(a > b for a, b in zip(durs, durs[1:]))
+    html = build_main.render_html(10.0, [], [], [], "#000000", [], rolls=[(1.0, 0.8, 4)])
+    assert 'id="fu0"' in html and 'id="fd0"' in html and 'data-media-start="1.000"' in html
+    assert html.count('tl.fromTo("#reel"') == 4 and 'tl.set("#reel", {y: 0}' in html
+
+
+# ── музыка громче в паузах, на месте под голосом ─────────────────────────────
+
+def _w(*spans):
+    return [{"text": f"w{i}", "start": a, "end": b} for i, (a, b) in enumerate(spans)]
+
+
+def test_auto_levels_lift_in_pauses_flat_under_speech():
+    words = _w((0.5, 1.0), (1.2, 2.0), (3.5, 4.2), (4.5, 5.0))   # пауза 2.0–3.5, 4.2–4.5 короткая
+    keys = composite.auto_levels(words, 7.0, lift_db=6)
+    lv = lambda t: composite.level_at(keys, t)  # noqa: E731
+    assert lv(0.05) == 6 and lv(1.5) == 0 and lv(4.3) == 0      # до речи громче; под голосом и в короткой паузе — нет
+    assert lv(2.9) == 6 and lv(3.5) == 0                          # длинная пауза поднялась и к фразе опустилась
+    assert lv(6.8) == 6                                           # после последнего слова — громче
+    assert [k[0] for k in keys] == sorted(k[0] for k in keys)
+
+
+def test_auto_levels_off_and_tight_speech():
+    assert composite.auto_levels(_w((0.0, 1.0)), 5.0, lift_db=0) == []
+    keys = composite.auto_levels(_w((0.0, 1.0), (1.3, 2.0), (2.4, 3.0)), 3.05, lift_db=6)
+    assert keys == []                                             # речь сплошная, концы впритык
+
+
+def test_level_at_matches_ramp():
+    keys = [(1.0, -6.0, 1.0)]
+    assert composite.level_at(keys, 0.5) == 0 and composite.level_at(keys, 1.5) == -3.0
+    assert composite.level_at(keys, 3.0) == -6.0

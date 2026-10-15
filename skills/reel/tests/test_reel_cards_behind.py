@@ -30,6 +30,9 @@ SLOTS = {
     "buttons": {"avatar": "🤖", "title": "Бот", "message": "Работает", "hint": "Что сделать?",
                 "buttons": [{"text": "+ Источник", "press_at": "Напиши"}, {"text": "⏸ Пауза"}]},
     "cta": {"lead": "Напиши в комменты", "word": "СЛОВО", "sub": "пришлю ссылку", "sub_at": "пришлю"},
+    "sticker": {"text": "🤬", "x": 520, "y": 1100, "size": 170, "rotate": -12},
+    "filmstrip": {"text": "СМОНТИРОВАЛ"},
+    "logos_cut": {"icons": [], "cut_at": "сам."},
 }
 
 
@@ -101,3 +104,45 @@ def test_behind_build(words, theme):
     assert any('class="strike"' in b for b in body)
     assert any('class="w secondary"' in b for b in body)
     assert any("scaleX: 0" in j for j in js)
+
+
+def test_behind_plate_fades_in_when_asked(words, theme):
+    import words as wmod
+    at = lambda a: wmod.at(words, a)  # noqa: E731
+    res = behind.resolve([{"from": "Сервер", "to": "end", "fade_in": 0.35,
+                           "phrases": [{"lines": [{"size": "huge", "words": [{"text": "X", "at": "Сервер"}]}]}]}],
+                         at, 30.0)
+    _, _, js, _ = behind.build(res, theme)
+    assert any('tl.fromTo("#plate1", {opacity: 0}' in j and "duration: 0.35" in j for j in js)
+
+
+def test_behind_line_top_override(words, theme):
+    import words as wmod
+    at = lambda a: wmod.at(words, a)  # noqa: E731
+    res = behind.resolve([{"from": "Сервер", "to": "end", "phrases": [
+        {"lines": [{"size": "huge", "top": 590, "words": [{"text": "X", "at": "Сервер"}]}]}]}], at, 30.0)
+    _, body, _, _ = behind.build(res, theme)
+    assert any('class="hero huge" style="top:590px"' in b for b in body)
+
+
+def test_behind_typed_line_and_clamp_to_cut(words, theme):
+    at = lambda a: wmod.at(words, a)  # noqa: E731
+    res = behind.resolve([{"from": "Сервер", "to": "end", "phrases": [{"lines": [
+        {"size": "l1", "type": 0.5, "words": [{"text": "АБВ", "at": "Сервер"}]},
+        {"size": "huge", "words": [{"text": "X", "at": "сам."}]}]}]}], at, 30.0)
+    behind.clamp_to_spans(res, [(0.0, 3.0), (3.0, 10.0), (10.0, 30.0)])
+    assert res[0]["b"] == 9.97 and res[0]["phrases"][-1]["b"] == 9.97
+    _, body, js, _ = behind.build(res, theme)
+    assert '<span class="ch">А</span><span class="ch">Б</span>' in "\n".join(body)
+    assert any(".ch\", {opacity: 0}" in j and "stagger: 0.1667" in j for j in js)
+
+
+def test_logos_cut_copies_icon_files(tmp_path, words, theme):
+    at = lambda a: wmod.at(words, a)  # noqa: E731
+    ico = tmp_path / "a.png"
+    ico.write_bytes(b"\x89PNG\r\n\x1a\n")
+    files = []
+    _, body, js = cards.build([{"template": "logos_cut", "a": 1.0, "b": 3.0,
+                                "slots": {"icons": [str(ico)], "cut_at": "сам."}}], at, theme, files=files)
+    assert files == [(str(ico), "c1-0.png")] and 'src="c1-0.png"' in body[0]
+    assert any("scaleX: 1" in j for j in js)

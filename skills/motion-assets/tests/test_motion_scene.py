@@ -7,7 +7,7 @@ import scene
 
 
 def test_list_templates():
-    assert scene.list_templates() == ["coin_flip", "flip_board", "post_3d", "sources_bot"]
+    assert scene.list_templates() == ["channel_feed", "chat_3d", "coin_flip", "end_card", "flip_board", "laptop_3d", "music_eq", "post_3d", "sources_bot", "timeline_3d"]
 
 
 def test_cli_list(capsys):
@@ -99,3 +99,17 @@ def test_entry_for_paths_relative():
     assert e["files"] == {"mov_alpha": "id1/id1.mov", "green": "id1/id1-green.mp4"}
     assert e["kind"] == "overlay"
     assert library.validate_entry(e) == []
+
+
+def test_scripts_and_templates_compile_with_system_python():
+    """scene.py запускают системным python3 (на маке 3.9): синтаксис новее него ронял рендер."""
+    import shutil
+    import subprocess
+    from pathlib import Path
+    py = shutil.which("python3")
+    if not py:
+        return
+    root = Path(__file__).parent.parent
+    for f in sorted(list((root / "scripts").glob("*.py")) + list((root / "templates").glob("*.py"))):
+        r = subprocess.run([py, "-m", "py_compile", str(f)], capture_output=True, text=True)
+        assert r.returncode == 0, f"{f.name}: {r.stderr.strip()[-300:]}"

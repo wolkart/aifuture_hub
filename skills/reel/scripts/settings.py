@@ -17,9 +17,13 @@ from pathlib import Path
 
 SKILL_ROOT = Path(__file__).resolve().parent.parent
 
-CAPTION_STYLES = {"строки": "lines", "по_слову": "word", "lines": "lines", "word": "word"}
+CAPTION_STYLES = {"строки": "lines", "по_слову": "word", "капс": "caps",
+                  "lines": "lines", "word": "word", "caps": "caps"}
 WORD_ANIMS = {"приближение": "pop", "без_анимации": "none", "волна": "wave",
               "pop": "pop", "none": "none", "wave": "wave"}
+# CTA ролика: кодовое слово в комменты (карточка cta) или 3D-концовка со ссылкой
+# (ассет end_card из motion-assets). В одном ролике одно из двух.
+CTA_TYPES = {"код": "code", "ссылка": "link", "code": "code", "link": "link"}
 
 # Нейтральная палитра на случай, если в файле чего-то нет. Свой стиль — в файле автора.
 DEFAULT_THEME = {
@@ -29,6 +33,7 @@ DEFAULT_THEME = {
     "secondary": "#5B8DEF",
     "muted": "#9A9AB0",
     "success": "#4CC38A",
+    "danger": "#FF3B1F",
     "accent": {"name": "по_умолчанию", "solid": "#F2A93B", "on_light": "#B8740A", "gradient": None},
 }
 
@@ -98,6 +103,11 @@ def accent(theme_raw, name=None):
     return {"name": name, "solid": solid, "on_light": on_light, "gradient": grad or None}
 
 
+def cta_type(value, default="code"):
+    """«код» | «ссылка» (или code | link) → "code" | "link"; пусто или опечатка — default."""
+    return CTA_TYPES.get(str(value or "").strip().lower(), default)
+
+
 def resolve(raw, base_dir, accent_name=None, caption_style=None):
     """Сырой файл → нормализованный словарь. accent_name/caption_style — переопределение
     на один ролик (ротация акцентов и стилей для сравнения)."""
@@ -111,6 +121,7 @@ def resolve(raw, base_dir, accent_name=None, caption_style=None):
         "secondary": t.get("вторичный") or DEFAULT_THEME["secondary"],
         "muted": t.get("приглушённый") or DEFAULT_THEME["muted"],
         "success": t.get("служебный_успех") or DEFAULT_THEME["success"],
+        "danger": t.get("служебный_огонь") or DEFAULT_THEME["danger"],
         "font_main": _path(base, fonts.get("основной")),
         "font_display": _path(base, _first(fonts, "цифры_и_крупно", "крупный")),
         "accent": accent(t, accent_name),
@@ -127,7 +138,8 @@ def resolve(raw, base_dir, accent_name=None, caption_style=None):
         "pop_from": float(c.get("приближение_с", 0.8)),
         "word_px": int(c.get("размер_слова_px", 72)),
         "line_px": int(c.get("размер_строки_px", 58)),
-        "top_px": int(c.get("верх_px") or (1250 if style == "word" else 1385)),
+        "top_px": int(c.get("верх_px") or {"word": 1250, "caps": 1300}.get(style, 1385)),
+        "caps_px": int(c.get("размер_капс_px", 104)),
         "top_half_px": int(c.get("верх_на_half_px", 880)),
         "backing": {
             "color": back.get("цвет") or theme["bg_dark"][-1],
@@ -145,6 +157,7 @@ def resolve(raw, base_dir, accent_name=None, caption_style=None):
         "bed": _path(base, _first(m, "подложка", "подложка_3мин")),
         "recipe": None,
         "rel_lu": float(m.get("уровень_LU_к_голосу", -12)),
+        "pause_lift_db": float(m.get("подъём_в_паузах_dB", 6)),
     }
     if rec.get("цикл"):
         quiet = rec.get("тихая_зона_для_конца") or [rec["цикл"][1], rec["цикл"][1] + 5]
@@ -171,6 +184,7 @@ def resolve(raw, base_dir, accent_name=None, caption_style=None):
         "music": music,
         "dictionary": dict(raw.get("словарь_замен") or {}),
         "cta": raw.get("cta") or {},
+        "cta_type": cta_type((raw.get("cta") or {}).get("тип")),
         "edit": {
             "zoom_levels": [float(x) for x in (z.get("уровни") or [1.0, 1.15])],
             "punch_add": float(whoosh.get("плюс", 0.12)),
@@ -182,6 +196,7 @@ def resolve(raw, base_dir, accent_name=None, caption_style=None):
         "folders": {
             "library": _path(base, folders.get("библиотека_ассетов")),
             "brolls": [_path(base, b) for b in brolls],
+            "sfx": _path(base, folders.get("звуки")),
         },
     }
 
