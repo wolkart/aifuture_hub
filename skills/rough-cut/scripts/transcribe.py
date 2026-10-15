@@ -1,8 +1,11 @@
 #!/usr/bin/env python3
-"""Пословный транскрипт: mlx-whisper (Apple Silicon) / faster-whisper (остальные).
+"""Пословный транскрипт: mlx-whisper (Apple Silicon) / faster-whisper (остальные) /
+ElevenLabs Scribe (облако, --backend scribe).
 
-Сам перезапускает себя через uv с нужной зависимостью — вызывать можно
-голым python3. Первый запуск скачивает модель (~1.5 ГБ, разово).
+Локальный Whisper сам перезапускает себя через uv с нужной зависимостью — вызывать
+можно голым python3. Первый запуск скачивает модель (~1.5 ГБ, разово).
+Scribe — когда в записи много запинок («э-э», «м-м»): Whisper их обычно не пишет,
+Scribe пишет дословно. Облако, ~$0.22 за час звука, нужен ELEVENLABS_API_KEY (scribe.py).
 """
 import argparse
 import json
@@ -52,11 +55,19 @@ def run(audio, backend, model):
 def main():
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("audio")
-    ap.add_argument("--backend", choices=["auto", "mlx", "faster"], default="auto")
+    ap.add_argument("--backend", choices=["auto", "mlx", "faster", "scribe"], default="auto")
+    ap.add_argument("--language", default=None, help="код языка для scribe (ru); пусто — автоопределение")
     ap.add_argument("--model", default=None)
     ap.add_argument("-o", "--out", default=None, help="куда писать words.json (по умолчанию export/)")
     ap.add_argument("--_direct", action="store_true", help=argparse.SUPPRESS)
     args = ap.parse_args()
+    if args.backend == "scribe":
+        import scribe
+        result = scribe.run(args.audio, args.language)
+        write(result, args)
+        print(f"scribe: слов {len(result['words'])}, событий {len(result['events'])}, "
+              f"≈ ${result['cost_usd']}", file=sys.stderr)
+        return
     backend = pick_backend(override=args.backend)
     model = args.model or DEFAULT_MODEL[backend]
     if not getattr(args, "_direct"):
@@ -64,7 +75,10 @@ def main():
                          os.path.abspath(__file__), args.audio,
                          "--backend", backend, "--model", model, "--_direct"]
                  + (["--out", os.path.abspath(args.out)] if args.out else []))
-    result = run(args.audio, backend, model)
+    write(run(args.audio, backend, model), args)
+
+
+def write(result, args):
     out_path = (Path(args.out) if args.out
                 else cutlist.export_dir(args.audio) / (Path(args.audio).name + ".words.json"))
     with open(out_path, "w", encoding="utf-8") as f:

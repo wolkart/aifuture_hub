@@ -70,6 +70,10 @@ uv run scripts/silence_cut.py <видео> [--audio <звук OBS>] [--out <cutl
    uv run scripts/detect_silence.py <чистый звук> --json
    python3 scripts/transcribe.py <чистый звук>   # → export/<имя>.words.json; кроме режима «только тишина»
    ```
+   **Много запинок** («э-э», «м-м» — обычно длинные записи) — `--backend scribe --language ru`:
+   локальный Whisper «чистит» речь и запинки в транскрипт часто не пишет, тогда Decide их
+   не видит. Scribe (ElevenLabs) пишет дословно: облако, ~$0.22 за час звука, ключ
+   `ELEVENLABS_API_KEY` в `.env` скилла (доктор покажет, есть ли). Без ключа — Whisper.
 4. **Decide** (твоя работа, правила — `references/decide-rules.md`):
    - по транскрипту: филлеры, заикания, дубли;
    - профиль `full`: `uv run scripts/extract_frames.py <видео> --intervals '<тихие участки JSON>' --out-dir <tmp>` → посмотри кадры глазами → cut / speedup / keep.

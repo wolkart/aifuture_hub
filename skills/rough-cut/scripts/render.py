@@ -4,12 +4,25 @@
 Исходники не перезаписываются никогда: выход не может совпадать со входом,
 существующий файл — только с --force. speedup: видео ускоряется, звук на
 этом участке — тишина (у таймлапса нет осмысленного звука).
+
+Звук каждого куска входит и выходит затуханием на FADE (8 мс): рез посреди
+волны даёт щелчок на стыке, а на склейке внутри речи (дубль, стадия «Взгляд»)
+волна почти никогда не в нуле. 8 мс на слух не заметны, а щелчок убирают.
 """
 import argparse
 import subprocess
 from pathlib import Path
 
 import cutlist
+
+FADE = 0.008
+
+
+def fades(dur, fade=FADE):
+    """Затухание на входе и выходе куска; кусок короче двух затуханий — без них."""
+    if dur <= 2 * fade:
+        return ""
+    return f",afade=t=in:d={fade},afade=t=out:st={dur - fade:.4f}:d={fade}"
 
 
 def build_cmd(d, out_path):
@@ -30,7 +43,7 @@ def build_cmd(d, out_path):
             parts.append(f"[0:v]trim=start={s}:end={e},"
                          f"setpts=PTS-STARTPTS[v{n}]")
             parts.append(f"[{a_in}]atrim=start={s + off}:end={e + off},"
-                         f"asetpts=PTS-STARTPTS[a{n}]")
+                         f"asetpts=PTS-STARTPTS{fades(e - s)}[a{n}]")
         else:  # speedup
             rate = seg["rate"]
             parts.append(f"[0:v]trim=start={s}:end={e},"

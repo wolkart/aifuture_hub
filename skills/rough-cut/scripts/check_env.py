@@ -38,7 +38,15 @@ def report():
                          "(~1.5 ГБ, разово); без транскрипта доступен режим "
                          "«только тишина»"),
         "missing": missing,
+        "scribe": scribe_status(),
     }
+
+
+def scribe_status():
+    """Облачный транскрипт с запинками: есть ли ключ (сам ключ не печатается)."""
+    import scribe
+    return ("ключ есть — --backend scribe доступен (~$0.22 за час звука)" if scribe.api_key()
+            else "нет ELEVENLABS_API_KEY — только локальный whisper (запинки он часто не пишет)")
 
 
 def main():
@@ -50,6 +58,7 @@ def main():
         print(json.dumps(r, ensure_ascii=False))
         return
     print(f"Платформа: {r['platform']}  |  whisper-бэкенд: {r['whisper_backend']}")
+    print(f"Scribe: {r['scribe']}")
     if r["ok"]:
         print("Окружение готово. " + r["whisper_note"])
     else:
