@@ -20,6 +20,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import behind as behind_mod  # noqa: E402
 import captions  # noqa: E402
 import cards as cards_mod  # noqa: E402
+import glyphs  # noqa: E402
 import hf  # noqa: E402
 import inserts as ins  # noqa: E402
 import settings as settings_mod  # noqa: E402
@@ -31,6 +32,8 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("variant")
     ap.add_argument("--settings", default=None)
+    ap.add_argument("--allow-fallback", action="store_true",
+                    help="собрать, даже если букв нет в шрифте темы (нарисуются чужим шрифтом)")
     args = ap.parse_args()
 
     b = Build(args.variant)
@@ -80,6 +83,17 @@ def main():
         print(line)
     if plan.get("behind_text"):
         print("рендер: " + " ".join(hf.render_cmd(b.behind, b.behind_webm, "webm")))
+    bad = False
+    for where, page in (("front", b.front / "index.html"), ("behind", b.behind / "index.html")):
+        if where == "behind" and not plan.get("behind_text"):
+            continue
+        res = glyphs.check(page.read_text(encoding="utf-8"), theme["font_main"], theme["font_display"])
+        for line in glyphs.report(res, where):
+            print(line)
+        bad = bad or bool(res["missing"])
+    if bad and not args.allow_fallback:
+        raise SystemExit("build_front: буквы не из шрифта темы — замени слово/символ или шрифт "
+                         "(собрать как есть — --allow-fallback)")
     print("рендер: " + " ".join(hf.render_cmd(b.front, b.front_webm, "webm")))
 
 

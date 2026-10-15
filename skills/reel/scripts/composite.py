@@ -65,6 +65,45 @@ def tp_linear(db):
     return round(10 ** (db / 20), 4)
 
 
+def level_at(levels, t):
+    """Уровень огибающей в момент t — та же логика, что level_expr (для проверки и отчёта)."""
+    prev, cur = 0.0, 0.0
+    for kt, db, ramp in sorted(levels):
+        ramp = max(0.01, float(ramp or 0.01))
+        if t < kt:
+            return cur
+        cur = db if t >= kt + ramp else prev + (db - prev) * (t - kt) / ramp
+        prev = db
+    return cur
+
+
+def auto_levels(words, dur, lift_db=6.0, min_gap=0.6, ramp=0.25, tail=0.15):
+    """Музыка под голосом — на своём уровне (−12 LU к голосу), в паузах ≥ min_gap и
+    до/после речи — громче на lift_db. Огибающая по словам расшифровки: уходит вниз
+    за ramp до первого слова фразы, поднимается через tail после последнего.
+    → ключи [(t, db, ramp)] для level_expr."""
+    if lift_db <= 0 or not words:
+        return []
+    phrases = []
+    for w in words:
+        if phrases and w["start"] - phrases[-1][1] < min_gap:
+            phrases[-1][1] = w["end"]
+        else:
+            phrases.append([w["start"], w["end"]])
+    keys = []
+    if phrases[0][0] > ramp + 0.05:
+        keys += [(0.0, lift_db, 0.01), (round(phrases[0][0] - ramp, 3), 0.0, ramp)]
+    for (_, pe), (ps, _) in zip(phrases, phrases[1:]):
+        room = (ps - ramp) - (pe + tail)
+        if room < 0.1:
+            continue
+        keys += [(round(pe + tail, 3), lift_db, round(min(0.4, room / 2), 3)), (round(ps - ramp, 3), 0.0, ramp)]
+    last = phrases[-1][1]
+    if dur - last > tail + 0.2:
+        keys.append((round(last + tail, 3), lift_db, 0.4))
+    return keys
+
+
 def final_cmd(video, front_webm, voice_src, music, out, dur, gv, gm, true_peak=-1.5, fps=hf.FPS, levels=(),
               sfx=None):
     cmd = ["ffmpeg", "-y", "-v", "error", "-stats", "-i", str(video)]
@@ -146,6 +185,13 @@ def cmd_final(b, args):
     b.final.mkdir(parents=True, exist_ok=True)
     out = b.final / f"{b.stem} — {label}.mp4"
     levels = []
+    lift = float(plan.get("music_lift_db", s["music"].get("pause_lift_db", 6)))
+    if music and not plan.get("music_levels") and lift > 0 and b.transcript.exists():
+        import words as wmod
+        levels = auto_levels(wmod.load(b.transcript), dur, lift)
+        pauses = sum(1 for _, db, _ in levels if db > 0)
+        print(f"музыка: под голосом {s['music']['rel_lu']:.0f} LU к голосу, в паузах +{lift:.0f} dB "
+              f"(окон {pauses}; выключить — \"music_lift_db\": 0 в плане)")
     if music and plan.get("music_levels"):
         import words as wmod
         words = wmod.load(b.transcript)

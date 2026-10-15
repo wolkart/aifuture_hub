@@ -30,6 +30,7 @@ sys.path.insert(0, str(TEMPLATES))
 sys.path.insert(0, str(HERE))
 
 import _common     # noqa: E402  (templates/)
+import glyphs      # noqa: E402  (reel/scripts/)
 import hf          # noqa: E402  (reel/scripts/)
 import library     # noqa: E402
 import settings    # noqa: E402  (reel/scripts/)
@@ -68,6 +69,8 @@ def write_project(tpl, slots, theme, project_dir, kind=None, layout="full"):
     page = hf.page(built["css"], built["body"], built["js"], built["duration"], fonts,
                    bg=built["bg"], w=w, h=h)
     (Path(project_dir) / "index.html").write_text(page, encoding="utf-8")
+    for line in glyphs.report(glyphs.check(page, theme.get("font_main"), theme.get("font_display")), "сцена"):
+        print(line)
     return built
 
 

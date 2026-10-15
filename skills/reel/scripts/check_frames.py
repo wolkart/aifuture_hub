@@ -25,6 +25,12 @@ import words as wmod  # noqa: E402
 from layout import Build  # noqa: E402
 
 MATTE_SAMPLES = 30
+# Безопасная зона Reels на 1080×1920: по высоте 360–1420 px, по ширине до 960 px —
+# сверху заголовок и камера интерфейса, справа кнопки, снизу подпись и ник.
+# Рисуется рамкой на каждом кадре листа: что вылезло за неё, интерфейс закроет.
+SAFE = (0, 360, 960, 1420)
+SAFE_BOX = (f"drawbox=x=iw*{SAFE[0]}/1080:y=ih*{SAFE[1]}/1920:w=iw*{SAFE[2] - SAFE[0]}/1080:"
+            f"h=ih*{SAFE[3] - SAFE[1]}/1920:color=red@0.6:t=1")
 
 
 def sample_times(brolls, cards, windows, dur, matte_n=MATTE_SAMPLES):
@@ -72,7 +78,7 @@ def main():
     labels = has_drawtext()
     tmp = Path(tempfile.mkdtemp())
     for i, (t, label) in enumerate(times):
-        vf = "scale=270:-2"
+        vf = "scale=270:-2," + SAFE_BOX
         if labels and font and Path(font).exists():
             vf += (f",drawtext=fontfile='{font}':text='{esc_drawtext(f'{t:.2f} {label}')}':x=8:y=8:"
                    f"fontsize=18:fontcolor=white:box=1:boxcolor=black@0.6:boxborderw=4")
@@ -99,6 +105,8 @@ def main():
         if not labels:
             chunk = times[n * per:(n + 1) * per]
             print("    " + " · ".join(f"{i + 1}) {t:.2f} {lbl}" for i, (t, lbl) in enumerate(chunk)))
+    print("красная рамка — безопасная зона Reels (360–1420 по высоте, до 960 по ширине): "
+          "текст и главное — внутри")
     print("чек-лист: не на переходе · объект целиком · субтитры не на лице · карточка не на б-ролле · "
           "нет мебели/ореола в маске · ничего приватного · текст = сценарий · края чистые")
     print(json.dumps([{"t": t, "что": lbl} for t, lbl in times], ensure_ascii=False))

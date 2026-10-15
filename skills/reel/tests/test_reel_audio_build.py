@@ -274,3 +274,31 @@ def test_film_roll_copies_and_accelerating_passes():
     html = build_main.render_html(10.0, [], [], [], "#000000", [], rolls=[(1.0, 0.8, 4)])
     assert 'id="fu0"' in html and 'id="fd0"' in html and 'data-media-start="1.000"' in html
     assert html.count('tl.fromTo("#reel"') == 4 and 'tl.set("#reel", {y: 0}' in html
+
+
+# ── музыка громче в паузах, на месте под голосом ─────────────────────────────
+
+def _w(*spans):
+    return [{"text": f"w{i}", "start": a, "end": b} for i, (a, b) in enumerate(spans)]
+
+
+def test_auto_levels_lift_in_pauses_flat_under_speech():
+    words = _w((0.5, 1.0), (1.2, 2.0), (3.5, 4.2), (4.5, 5.0))   # пауза 2.0–3.5, 4.2–4.5 короткая
+    keys = composite.auto_levels(words, 7.0, lift_db=6)
+    lv = lambda t: composite.level_at(keys, t)  # noqa: E731
+    assert lv(0.05) == 6 and lv(1.5) == 0 and lv(4.3) == 0      # до речи громче; под голосом и в короткой паузе — нет
+    assert lv(2.9) == 6 and lv(3.5) == 0                          # длинная пауза поднялась и к фразе опустилась
+    assert lv(6.8) == 6                                           # после последнего слова — громче
+    assert [k[0] for k in keys] == sorted(k[0] for k in keys)
+
+
+def test_auto_levels_off_and_tight_speech():
+    assert composite.auto_levels(_w((0.0, 1.0)), 5.0, lift_db=0) == []
+    keys = composite.auto_levels(_w((0.0, 1.0), (1.3, 2.0), (2.4, 3.0)), 3.05, lift_db=6)
+    assert keys == []                                             # речь сплошная, концы впритык
+
+
+def test_level_at_matches_ramp():
+    keys = [(1.0, -6.0, 1.0)]
+    assert composite.level_at(keys, 0.5) == 0 and composite.level_at(keys, 1.5) == -3.0
+    assert composite.level_at(keys, 3.0) == -6.0

@@ -157,6 +157,7 @@ def resolve(raw, base_dir, accent_name=None, caption_style=None):
         "bed": _path(base, _first(m, "подложка", "подложка_3мин")),
         "recipe": None,
         "rel_lu": float(m.get("уровень_LU_к_голосу", -12)),
+        "pause_lift_db": float(m.get("подъём_в_паузах_dB", 6)),
     }
     if rec.get("цикл"):
         quiet = rec.get("тихая_зона_для_конца") or [rec["цикл"][1], rec["цикл"][1] + 5]
