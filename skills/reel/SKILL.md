@@ -113,6 +113,10 @@ python3 scripts/build_main.py export/_сборка/v1       # спикер с н
 uv run scripts/music_bed.py export/_сборка/music.m4a --duration <длина черновика>
 ```
 
+**Горизонтальный исходник** (шортс из длинного ролика): `build_main.py` и рендер `main/`
+нужны в любом режиме, даже `subs` — они ставят кадр в 9:16. По умолчанию по лицу
+(`faces.csv` есть) или весь кадр на размытом фоне (скринкаст); в плане `"frame": "face" | "blur"`.
+
 Текст за головой: рендер `behind/` → `uv run scripts/matte.py export/_сборка/v1`
 → `python3 scripts/composite.py base export/_сборка/v1` → и только потом
 `build_main.py` (основа с текстом идёт под наезды). Рендер 36-секундного ролика:

@@ -153,6 +153,14 @@ def duration(path):
     return float(out)
 
 
+def size(path):
+    """(ширина, высота) видео по ffprobe."""
+    out = subprocess.check_output(["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries",
+                                   "stream=width,height", "-of", "csv=p=0", str(path)]).decode()
+    w, h = out.strip().split(",")[:2]
+    return int(w), int(h)
+
+
 def rgb(hex_color):
     h = hex_color.lstrip("#")
     return ", ".join(str(int(h[i:i + 2], 16)) for i in (0, 2, 4))

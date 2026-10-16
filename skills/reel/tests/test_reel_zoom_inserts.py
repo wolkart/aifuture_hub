@@ -144,3 +144,35 @@ def test_punch_with_strength_and_bounce_back(words):
     rows = zoom.plan([(0.0, 30.0)], words, punch=[{"word": "бесплатно", "add": 0.35, "back": 0.1}])
     assert "1.00→1.35→1.10" in rows[0]["kind"] and rows[0]["end"] == 1.1
     assert any("scale: 1.35" in j for j in rows[0]["js"]) and any("scale: 1.1," in j for j in rows[0]["js"])
+
+
+# ── горизонтальный исходник в 9:16 ───────────────────────────────────────────
+
+def test_landscape_face_crop_puts_face_in_centre():
+    import build_main
+    faces = [(0.0, 0.7, 0.4), (1.0, 0.72, 0.42), (2.0, 0.68, 0.41)]
+    css, bg, mapped = build_main.landscape_frame("face", 1920, 1080, faces)
+    assert "object-position" in css and bg == ""
+    assert mapped[0][1] == pytest.approx(0.5, abs=0.02)          # лицо — по центру кадра
+    assert all(y == f[2] for (_, _, y), f in zip(mapped, faces))  # высота кадра не режется
+
+
+def test_landscape_face_crop_clamps_to_edge():
+    import build_main
+    css, _, mapped = build_main.landscape_frame("face", 1920, 1080, [(0.0, 0.98, 0.5)])
+    assert "100.0%" in css and 0.5 < mapped[0][1] <= 1.0           # лицо у края — кадр прижат, не вылезает
+
+
+def test_landscape_blur_letterbox_maps_faces():
+    import build_main
+    css, bg, mapped = build_main.landscape_frame("blur", 1920, 1080, [(0.0, 0.5, 0.5)])
+    assert bg == "blur" and "object-fit: contain" in css and "#bgblur" in css
+    assert mapped[0][2] == pytest.approx(0.5)                      # середина кадра остаётся серединой
+    _, _, top = build_main.landscape_frame("blur", 1920, 1080, [(0.0, 0.5, 0.0)])
+    assert top[0][2] == pytest.approx((1920 - 607.5) / 2 / 1920)
+
+
+def test_render_html_blur_adds_background_video():
+    import build_main
+    html = build_main.render_html(5.0, [], [], [], "#000000", [], (), ("#cam video {}", "blur"))
+    assert 'id="bgblur"' in html and "background: transparent" in html
