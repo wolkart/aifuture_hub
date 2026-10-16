@@ -36,7 +36,30 @@ def roll_durations(total, cycles, ratio=0.72):
     return [round(total * x / sum(w), 4) for x in w]
 
 
-def render_html(dur, zoom_rows, brolls, halves, seam_color, media_names, rolls=()):
+def landscape_frame(mode, w, h, faces):
+    """Горизонтальный исходник в кадре 9:16. → (css, фон-html, лица в координатах кадра).
+    face — обрезка по лицу: видео на весь кадр, сдвиг по медиане лица за ролик (кадр не
+           прыгает); центр наездов пересчитывается в обрезанный кадр;
+    blur — весь кадр по ширине посередине, за ним тот же ролик размытым на весь экран
+           (скринкаст: обрезать нельзя, на экране всё нужное)."""
+    import statistics
+    if mode == "face":
+        shown = w * 1920 / h
+        cx = statistics.median(x for _, x, _ in faces) if faces else 0.5
+        pos = min(1.0, max(0.0, (cx * shown - 540) / (shown - 1080))) if shown > 1080 else 0.5
+        off = (1080 - shown) * pos
+        mapped = [(t, (off + x * shown) / 1080, y) for t, x, y in faces]
+        return f"#cam video {{ object-position: {pos * 100:.1f}% 50%; }}", "", mapped
+    hh = 1080 * h / w
+    top = (1920 - hh) / 2
+    css = ("#cam video { object-fit: contain; }\n"
+           "#bgblur { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; z-index: 0; "
+           "filter: blur(40px) brightness(0.55); transform: scale(1.15); }")
+    mapped = [(t, x, (top + y * hh) / 1920) for t, x, y in faces]
+    return css, "blur", mapped
+
+
+def render_html(dur, zoom_rows, brolls, halves, seam_color, media_names, rolls=(), frame=("", "")):
     js, body = [], []
     for r in zoom_rows:
         js += r["js"]
@@ -64,7 +87,7 @@ def render_html(dur, zoom_rows, brolls, halves, seam_color, media_names, rolls=(
 #cam { position: absolute; inset: 0; will-change: transform; z-index: 1; }
 #cam video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
 #reel { position: absolute; inset: 0; background: #000; will-change: transform; }
-"""
+""" + frame[0]
     copies, step = [], 1920 + FRAME_GAP
     for k, (ra, rd, cycles) in enumerate(rolls):
         for vid, off in ((f"fu{k}", -step), (f"fd{k}", step)):
@@ -81,7 +104,13 @@ def render_html(dur, zoom_rows, brolls, halves, seam_color, media_names, rolls=(
         js.append(f'tl.set("#reel", {{y: 0}}, {t:.3f});')
     cam = (f'<div id="cam" class="inner"><div id="reel"><video id="base" src="base.mp4" data-start="0" '
            f'data-duration="{dur:.3f}" data-track-index="0" playsinline muted></video>{"".join(copies)}</div></div>')
-    return hf.page(css, cam + "\n" + "\n".join(body), "\n".join(js), dur, bg="#000")
+    bg = ""
+    if frame[1]:   # размытый фон: тот же ролик за кадром, на своей дорожке
+        bg = (f'<video id="bgblur" src="base.mp4" data-start="0" data-duration="{dur:.3f}" '
+              f'data-track-index="9" playsinline muted></video>')
+        css = css.replace("#reel { position: absolute; inset: 0; background: #000;",
+                          "#reel { position: absolute; inset: 0; background: transparent;")
+    return hf.page(css, bg + cam + "\n" + "\n".join(body), "\n".join(js), dur, bg="#000")
 
 
 def main():
@@ -115,8 +144,16 @@ def main():
     spans = [(a, min(bb, dur)) for a, bb in ins.spans_from_cutlist(json.loads(b.cutlist.read_text()))
              if a < dur] if b.cutlist.exists() else [(0.0, dur)]
     rows = []
+    faces = zoom.load_faces(b.faces) if b.faces.exists() else []
+    frame = ("", "")
+    w, h = hf.size(base_src)
+    if w > h:   # горизонтальный исходник (шортс из длинного ролика) — ставим в 9:16
+        mode = plan.get("frame") or ("face" if faces else "blur")
+        css, bg, faces = landscape_frame(mode, w, h, faces)
+        frame = (css, bg)
+        print(f"кадр: горизонтальный {w}×{h} → 9:16, {'по лицу' if mode == 'face' else 'весь кадр на размытом фоне'}"
+              f" (в плане \"frame\": face | blur)")
     if plan.get("zoom", True):
-        faces = zoom.load_faces(b.faces) if b.faces.exists() else []
         if not faces:
             print("⚠ faces.csv нет — центр наезда по умолчанию (запусти face_centers.py)")
         plates = b.read_json(b.windows, []) if plan.get("behind_text") else []
@@ -136,7 +173,8 @@ def main():
              for r in plan.get("film_roll", [])]
     hf.setup_project(b.main, s["theme"], [(src, name) for name, src in files.items()])
     (b.main / "index.html").write_text(
-        render_html(dur, rows, brolls, halves, s["theme"]["bg_dark"][-1], media, rolls), encoding="utf-8")
+        render_html(dur, rows, brolls, halves, s["theme"]["bg_dark"][-1], media, rolls, frame),
+        encoding="utf-8")
     for ra, rd, cyc in rolls:
         print(f"кадр-лента: {ra:.2f}–{ra + rd:.2f} с, {cyc} прохода, всё быстрее")
 
