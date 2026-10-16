@@ -9,7 +9,7 @@ from pathlib import Path
 
 EPS = 0.02
 ACTIONS = {"keep", "cut", "speedup"}
-SOURCES = {"silence", "filler", "retake", "screencast", "gaze", "user"}
+SOURCES = {"silence", "filler", "retake", "screencast", "gaze", "semantic", "user"}
 SCENARIOS = {"camera_plus_audio", "screencast", "multicam"}
 PROFILES = {"light", "full"}
 
