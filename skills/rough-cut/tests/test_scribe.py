@@ -60,3 +60,37 @@ def test_cli_without_key_explains(tmp_path, monkeypatch):
     if scribe.api_key():  # у разработчика ключ может лежать в .env скилла — тогда тест не о том
         return
     assert r.returncode != 0 and "ELEVENLABS_API_KEY" in r.stderr
+
+
+def test_post_retries_busy_then_succeeds():
+    import io
+    import urllib.error
+    calls, waits = [], []
+
+    class Resp(io.BytesIO):
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+    def opener(req, timeout):
+        calls.append(1)
+        if len(calls) < 3:
+            raise urllib.error.HTTPError(scribe.URL, 429, "busy", {}, io.BytesIO(b'{"detail":"system_busy"}'))
+        return Resp(b'{"text": "ok", "words": []}')
+
+    assert scribe.post(b"x", "t", "k", 5, sleep=waits.append, opener=opener)["text"] == "ok"
+    assert len(calls) == 3 and waits == [5, 15]
+
+
+def test_post_auth_error_not_retried():
+    import io
+    import urllib.error
+
+    def opener(req, timeout):
+        raise urllib.error.HTTPError(scribe.URL, 401, "bad key", {}, io.BytesIO(b"invalid api key"))
+
+    import pytest
+    with pytest.raises(SystemExit, match="HTTP 401"):
+        scribe.post(b"x", "t", "k", 5, sleep=lambda s: None, opener=opener)

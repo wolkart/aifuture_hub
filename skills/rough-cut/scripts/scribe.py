@@ -18,6 +18,7 @@ import json
 import os
 import subprocess
 import tempfile
+import time
 import urllib.error
 import urllib.request
 import uuid
@@ -91,6 +92,29 @@ def compress(src):
     return out
 
 
+RETRY = (5, 15, 30, 60)   # пауза перед повтором, с: 429 «system busy» и 5xx у них бывают днём
+
+
+def retriable(code):
+    return code == 429 or 500 <= code < 600
+
+
+def post(body, ctype, key, timeout, sleep=time.sleep, opener=urllib.request.urlopen):
+    """POST с повторами при перегрузке сервера; 4xx кроме 429 — сразу ошибка (ключ, формат)."""
+    for attempt, wait in enumerate(list(RETRY) + [None]):
+        req = urllib.request.Request(URL, data=body, method="POST",
+                                     headers={"xi-api-key": key, "Content-Type": ctype})
+        try:
+            with opener(req, timeout=timeout) as r:
+                return json.loads(r.read().decode("utf-8"))
+        except urllib.error.HTTPError as e:
+            msg = e.read().decode("utf-8", "replace")[:500]
+            if wait is None or not retriable(e.code):
+                raise SystemExit(f"scribe: HTTP {e.code} — {msg}")
+            print(f"scribe: HTTP {e.code}, повтор через {wait} с (попытка {attempt + 2})", flush=True)
+            sleep(wait)
+
+
 def run(audio, language=None, key=None, timeout=1800):
     key = key or api_key()
     if not key:
@@ -98,13 +122,7 @@ def run(audio, language=None, key=None, timeout=1800):
                          "шаблон — .env.template). Без ключа — локальный whisper: --backend auto")
     ogg = compress(audio)
     body, ctype = multipart(fields(language), "file", ogg.name, ogg.read_bytes())
-    req = urllib.request.Request(URL, data=body, method="POST",
-                                 headers={"xi-api-key": key, "Content-Type": ctype})
-    try:
-        with urllib.request.urlopen(req, timeout=timeout) as r:
-            resp = json.loads(r.read().decode("utf-8"))
-    except urllib.error.HTTPError as e:
-        raise SystemExit(f"scribe: HTTP {e.code} — {e.read().decode('utf-8', 'replace')[:500]}")
+    resp = post(body, ctype, key, timeout)
     out = normalize(resp)
     secs = float(resp.get("audio_duration_secs") or (out["words"][-1]["end"] if out["words"] else 0))
     out["cost_usd"] = cost(secs)
