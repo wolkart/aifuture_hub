@@ -7,7 +7,7 @@ import scene
 
 
 def test_list_templates():
-    assert scene.list_templates() == ["channel_feed", "chat_3d", "coin_flip", "end_card", "flip_board", "laptop_3d", "music_eq", "post_3d", "sources_bot", "timeline_3d"]
+    assert scene.list_templates() == ["big_word", "brand_reveal", "channel_feed", "chat_3d", "coin_flip", "end_card", "flip_board", "laptop_3d", "logo_row", "music_eq", "post_3d", "sources_bot", "timeline_3d"]
 
 
 def test_cli_list(capsys):

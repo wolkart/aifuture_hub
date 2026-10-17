@@ -33,6 +33,11 @@ SLOTS = {
     "sticker": {"text": "🤬", "x": 520, "y": 1100, "size": 170, "rotate": -12},
     "filmstrip": {"text": "СМОНТИРОВАЛ"},
     "logos_cut": {"icons": [], "cut_at": "сам."},
+    "thought": {"x": 760, "y": 470, "head": [600, 760], "marks": [{"text": "?", "at": "Без"}, {"text": "!", "at": "бесплатно."}]},
+    "chat": {"name": "Клиент", "avatar": "🙂", "msg": "Хочу так же", "msg_from": "Без", "msg_to": "сервер",
+             "reply": "Без проблем", "reply_at": "работает"},
+    "cc_terminal": {"request": "Разбери, как это сделано", "type_from": "Без", "type_to": "сервер",
+                    "lines": [{"text": "Думает…", "kind": "think", "at": "работает"}, {"text": "Готово", "kind": "ok"}]},
 }
 
 

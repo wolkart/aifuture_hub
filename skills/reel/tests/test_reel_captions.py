@@ -189,3 +189,18 @@ def test_title_page_breaks_after_fire_word_and_spaces_kept(words, opts, theme):
     _, body, _, _ = cap.build(cap.insert_words(words, [{"t": 3.05, "text": "новый стиль"}]), 30.0,
                               dict(opts, style="word"), theme)
     assert "&nbsp;" in "\n".join(body)
+
+
+def test_key_style_top_follows_part_not_lead_in(opts, theme):
+    """Слово показывается чуть раньше, чем звучит: первое крупное слово — на высоте заголовка (а не
+    старого стиля), первое обычное после него — на своей высоте, а не наверху (баг 2026-10-17)."""
+    ws = make_words("раз два внутрь программы даже если")
+    k_in, k_out = ws[2]["start"], ws[4]["start"]     # ключ ровно на слове; показ слова — раньше ключа
+    keys = [{"t": k_in, "style": "title"}, {"t": k_out, "style": "word"}]
+    _, body, _, units = cap.build(ws, 10.0, dict(opts, style="word", top_px=1450), theme, keys=keys)
+    import re
+    text = lambda b: re.sub(r"<[^>]+>|\\s", "", b)  # noqa: E731  (по_слову бьёт слово на буквы)
+    title_div = next(b for b in body if "внутрь" in text(b))
+    after_div = next(b for b in body if "даже" in text(b))
+    assert f"top:{cap.STYLE_TOP['title']}px" in title_div, title_div[:200]
+    assert "top:1450px" in after_div, after_div[:200]

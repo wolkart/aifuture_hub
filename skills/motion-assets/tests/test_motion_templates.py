@@ -27,6 +27,10 @@ HEX = re.compile(r"#[0-9A-Fa-f]{6}\b")
 RGBA = re.compile(r"rgba\((\d+), (\d+), (\d+),")
 
 CUSTOM = {
+    "brand_reveal": {"icon": "★", "name": "Сервис", "font": "display", "sub": "бета", "scan": False, "glow": "secondary"},
+    "big_word": {"word": "НАВСЕГДА", "chip": "", "icon": "★"},
+    "logo_row": {"title": "", "check": False, "items": [{"icon": "★", "label": "A", "at": 0.1}, {"icon": "●", "label": "B", "at": 0.5},
+                                                        {"icon": "▲", "label": "C", "at": 0.9}, {"icon": "■", "label": "D", "at": 1.3}]},
     "coin_flip": {"headline": "Мой *бот*\nработает _ночью_", "context": "Смотри:", "icon": "★",
                   "coin": "accent", "tags": ["a", "b"]},
     "sources_bot": {"sources": ["Канал", "Сайт", "Почта", "Таблица"], "result": "+4 входа",
