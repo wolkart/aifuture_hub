@@ -124,6 +124,15 @@ class Ctx:
     def fade(self, sel, at, dur=0.2):
         self.js.append(f'tl.fromTo("{sel}", {{opacity: 0}}, {{opacity: 1, duration: {dur}}}, {at:.3f});')
 
+    def type_live(self, pid, text, t0, t1, end):
+        """Буквы появляются по одной (display), курсор мигает до конца карточки."""
+        step = (t1 - t0) / max(1, len(text))
+        for i in range(len(text)):
+            self.js.append(f'tl.set("#{pid}k{i}", {{display: "inline"}}, {t0 + i * step:.3f});')
+        blinks = max(1, int((end - t0) / 0.45))
+        self.js.append(f'tl.fromTo("#{pid}cur", {{opacity: 1}}, {{opacity: 0, duration: 0.45, repeat: {blinks}, '
+                       f'yoyo: true, ease: "steps(1)", immediateRender: false}}, {t0:.3f});')
+
     def type_on(self, sel, text, t0, t1):
         stagger = max(0.001, (t1 - t0) / max(1, len(text)))
         self.js.append(f'tl.to("{sel} .ch", {{opacity: 1, duration: 0.01, stagger: {stagger:.4f}}}, {t0:.3f});')
@@ -141,6 +150,13 @@ class Ctx:
 
 def typed(text):
     return "".join(f'<span class="ch">{esc(c)}</span>' for c in text)
+
+
+def typed_live(text, pid, cursor_color="currentColor"):
+    """Печать «вживую»: буква не занимает места, пока не напечатана, — курсор едет за текстом
+    (автор, 2026-10-17: «если что-то печатается — в динамике, как будто печатается»)."""
+    chars = "".join(f'<span id="{pid}k{i}" style="display:none">{esc(c)}</span>' for i, c in enumerate(text))
+    return chars + f'<span id="{pid}cur" style="display:inline-block;width:0.55em;margin-left:2px;color:{cursor_color}">▍</span>'
 
 
 def t_tiles(cid, a, b, s, c):
@@ -301,11 +317,11 @@ def t_cta(cid, a, b, s, c):
                 f'duration: 0.3, ease: "back.out(1.8)"}}, {a:.3f});')
     sub = ""
     if s.get("sub"):
-        sub = (f'<div class="sub" style="font-size:32px; margin-top:4px; opacity:0" id="{cid}s">'
+        sub = (f'<div class="sub" style="font-size:{int(s.get("sub_px", 32))}px; margin-top:4px; opacity:0" id="{cid}s">'
                f'{esc(s["sub"])}</div>')
         c.fade(f"#{cid}s", c.at(s["sub_at"]) if s.get("sub_at") is not None else a + 0.6, dur=0.25)
     return (f'<div class="card" style="text-align:center; padding:30px 40px 36px">'
-            f'<div class="sub" style="font-size:36px; color:{c.light}; margin:0">{esc(s.get("lead", ""))}</div>'
+            f'<div class="sub" style="font-size:{int(s.get("lead_px", 36))}px; color:{c.light}; margin:0">{esc(s.get("lead", ""))}</div>'
             f'<div style="font-family:var(--display); font-weight:700; font-size:{int(s.get("size", 190))}px; '
             f'line-height:1.05; color:{c.theme["accent"]["solid"]}; letter-spacing:0.01em">{esc(s.get("word", ""))}</div>'
             f'{sub}</div>')
@@ -394,8 +410,155 @@ def t_logos_cut(cid, a, b, s, c):
     return "".join(parts) + slash
 
 
+def _bubble(c):
+    """Серо-голубой пузырь собеседника — из светлого фона темы."""
+    return mix(c.theme["bg_light"][-1], "#FFFFFF", 0.35)
+
+
+def _avatar(cid, c, value, size):
+    """Аватарка: картинка (путь) — кружок с фото; иначе эмодзи на светлом кружке."""
+    p = Path(str(value)).expanduser() if value else None
+    if p and p.suffix.lower() in (".png", ".jpg", ".jpeg", ".webp") and p.exists():
+        return (f'<img src="{c.file(cid, p)}" style="width:{size}px;height:{size}px;border-radius:50%;object-fit:cover;'
+                f'flex:none" />')
+    return (f'<span style="width:{size}px;height:{size}px;border-radius:50%;background:{_bubble(c)};display:inline-flex;'
+            f'align-items:center;justify-content:center;font-size:{int(size * 0.55)}px;flex:none">{esc(value or "🙂")}</span>')
+
+
+def t_thought(cid, a, b, s, c):
+    """Облачко-мысль над головой: от головы поднимаются кружки, облако выскакивает, внутри по словам
+    выпрыгивают крупные знаки («?», «!», значки). Не карточка — своё место в кадре (x, y — центр облака)."""
+    x, y = int(s.get("x", 760)), int(s.get("y", 470))
+    w, h = int(s.get("w", 440)), int(s.get("h", 300))
+    hx, hy = s.get("head", [600, 760])
+    sec, ink = c.theme["secondary"], c.theme["text_dark"]
+    dots = ""
+    for i, (k, r) in enumerate(((0.25, 22), (0.5, 34), (0.75, 48))):
+        dx = hx + (x - w * 0.32 - hx) * k
+        dy = hy + (y + h * 0.42 - hy) * k
+        dots += (f'<div id="{cid}d{i}" style="position:absolute;left:{dx - r:.0f}px;top:{dy - r:.0f}px;width:{2 * r}px;'
+                 f'height:{2 * r}px;border-radius:50%;background:#FFFFFF;box-shadow:0 10px 30px rgba(0,0,0,0.35);opacity:0"></div>')
+    bumps = "".join(f'<div style="position:absolute;left:{bx}%;top:{by}%;width:{bs}%;height:{bs * w / h:.0f}%;border-radius:50%;'
+                    f'background:#FFFFFF"></div>' for bx, by, bs in ((-6, 18, 46), (22, -16, 48), (54, -10, 44), (70, 26, 40), (30, 40, 50)))
+    marks = s.get("marks", [{"text": "?"}])
+    n = len(marks)
+    mk = ""
+    for i, m in enumerate(marks):
+        left = 50 if n == 1 else 30 + 40 * i / max(1, n - 1)
+        rot = -12 if i % 2 == 0 else 14
+        mk += (f'<div id="{cid}m{i}" style="position:absolute;left:{left}%;top:50%;transform:translate(-50%,-50%);'
+               f'font-family:var(--display);font-weight:700;font-size:{int(m.get("size", h * 0.72))}px;line-height:1;'
+               f'background:linear-gradient(180deg,{sec},{ink});-webkit-background-clip:text;background-clip:text;color:transparent;'
+               f'opacity:0">{esc(m.get("text", "?"))}</div>')
+        t = c.at(m["at"]) if m.get("at") is not None else a + 0.45 + 0.35 * i
+        c.js.append(f'tl.fromTo("#{cid}m{i}", {{opacity: 0, scale: 0.2, rotation: {rot * 3}}}, {{opacity: 1, scale: 1, '
+                    f'rotation: {rot}, duration: 0.32, ease: "back.out(2.6)"}}, {t:.3f});')
+        c.js.append(f'tl.to("#{cid}m{i}", {{rotation: {-rot * 0.6}, duration: 0.35, yoyo: true, repeat: 3, '
+                    f'ease: "sine.inOut"}}, {t + 0.34:.3f});')
+    for i in range(3):
+        c.pop(f"#{cid}d{i}", a + 0.07 * i, dur=0.16, frm="{opacity: 0, y: 10, scale: 0.3}")
+    c.js.append(f'tl.fromTo("#{cid}b", {{opacity: 0, scale: 0.2}}, {{opacity: 1, scale: 1, duration: 0.34, '
+                f'ease: "back.out(2)"}}, {a + 0.2:.3f});')
+    c.js.append(f'tl.to("#{cid} .th", {{opacity: 0, duration: 0.16}}, {b - 0.16:.3f});')
+    return (f'<div class="th" style="position:absolute;inset:0">{dots}'
+            f'<div id="{cid}b" style="position:absolute;left:{x - w // 2}px;top:{y - h // 2}px;width:{w}px;height:{h}px;'
+            f'transform-origin:20% 90%;opacity:0;filter:drop-shadow(0 22px 40px rgba(0,0,0,0.45))">'
+            f'<div style="position:absolute;inset:0;border-radius:50%;background:#FFFFFF"></div>{bumps}{mk}</div></div>')
+
+
+def t_chat(cid, a, b, s, c):
+    """Живая переписка (светлая): шапка «печатает…» → «в сети», у собеседника прыгают три точки,
+    потом его сообщение печатается по буквам (msg_from → msg_to), ответ автора с аватаркой выскакивает."""
+    sec, ink, mut = c.theme["secondary"], c.theme["text_dark"], c.theme["muted"]
+    c.card_in_out(cid, a, b)
+    t0 = c.at(s["msg_from"]) if s.get("msg_from") is not None else a + 0.6
+    t1 = c.at(s["msg_to"]) if s.get("msg_to") is not None else t0 + min(1.6, 0.04 * len(s.get("msg", "")))
+    tr = c.at(s["reply_at"]) if s.get("reply_at") is not None else t1 + 0.4
+    c.js.append(f'tl.fromTo("#{cid}td", {{opacity: 0}}, {{opacity: 1, duration: 0.12}}, {a + 0.2:.3f});')
+    c.js.append(f'tl.to("#{cid}td i", {{y: -9, duration: 0.18, yoyo: true, repeat: {max(1, int((t0 - a) / 0.18))}, '
+                f'stagger: 0.09, ease: "sine.inOut"}}, {a + 0.22:.3f});')
+    c.js.append(f'tl.to("#{cid}td", {{opacity: 0, duration: 0.08}}, {t0 - 0.05:.3f});')
+    c.js.append(f'tl.fromTo("#{cid}mb", {{opacity: 0}}, {{opacity: 1, duration: 0.08}}, {t0 - 0.05:.3f});')
+    c.type_live(f"{cid}mb", s.get("msg", ""), t0, t1, tr)
+    c.js.append(f'tl.to("#{cid}st1", {{opacity: 0, duration: 0.1}}, {t1:.3f});')
+    c.js.append(f'tl.fromTo("#{cid}st2", {{opacity: 0}}, {{opacity: 1, duration: 0.1}}, {t1:.3f});')
+    c.pop(f"#{cid}rp", tr, dur=0.26, frm="{opacity: 0, x: 40, y: 10, scale: 0.85}")
+    dots = "".join('<i style="display:inline-block;width:14px;height:14px;border-radius:50%;margin:0 4px;'
+                   f'background:{mut}"></i>' for _ in range(3))
+    me = _avatar(cid, c, s.get("me"), 70)
+    return (f'<div class="card" style="background:#FFFFFF;color:{ink};border:none;padding:30px 34px 34px;'
+            f'box-shadow:0 30px 80px rgba(0,0,0,0.45)">'
+            f'<div class="row" style="gap:18px;padding-bottom:18px;border-bottom:2px solid {_bubble(c)}">'
+            f'{_avatar(cid, c, s.get("avatar", "🧑‍💼"), 76)}<div><div style="font-size:38px;font-weight:800">{esc(s.get("name", ""))}</div>'
+            f'<div style="position:relative;font-size:28px;height:34px"><span id="{cid}st1" style="position:absolute;color:{sec}">печатает…</span>'
+            f'<span id="{cid}st2" style="position:absolute;color:{mut};opacity:0">{esc(s.get("status", "в сети"))}</span></div></div></div>'
+            f'<div style="position:relative;margin-top:24px;min-height:96px">'
+            f'<div id="{cid}td" style="position:absolute;left:0;top:0;padding:22px 26px;border-radius:30px 30px 30px 8px;'
+            f'background:{_bubble(c)};opacity:0">{dots}</div>'
+            f'<div id="{cid}mb" style="display:inline-block;max-width:82%;padding:20px 28px;border-radius:30px 30px 30px 8px;'
+            f'background:{_bubble(c)};font-size:38px;font-weight:600;line-height:1.35;opacity:0">{typed_live(s.get("msg", ""), f"{cid}mb", sec)}</div></div>'
+            f'<div id="{cid}rp" style="display:flex;justify-content:flex-end;align-items:flex-end;gap:14px;margin-top:18px;opacity:0">'
+            f'<div style="max-width:76%;padding:20px 28px;border-radius:30px 30px 8px 30px;background:{sec};color:#FFFFFF;'
+            f'font-size:38px;font-weight:700;line-height:1.35">{esc(s.get("reply", ""))}</div>{me}</div></div>')
+
+
+def _mascot(color, px=12):
+    """Пиксельный маскот в духе Claude Code: тело, глаза-прорези, лапки (сетка 11×6)."""
+    rows = ["..XXXXXXX..", "..XXXXXXX..", "XXX.XXX.XXX", "XXXXXXXXXXX", "..XXXXXXX..", "..X.X.X.X.."]
+    rects = "".join(f'<rect x="{x * px}" y="{y * px}" width="{px}" height="{px}"/>'
+                    for y, r in enumerate(rows) for x, ch in enumerate(r) if ch == "X")
+    return (f'<svg width="{11 * px}" height="{6 * px}" viewBox="0 0 {11 * px} {6 * px}" style="flex:none" '
+            f'fill="{color}" shape-rendering="crispEdges">{rects}</svg>')
+
+
+def t_cc_terminal(cid, a, b, s, c):
+    """Терминал Claude Code в окне macOS: светлая шапка с тремя точками, приветствие с маскотом,
+    просьба печатается после «>», ответ — строками с «⏺», «✻ Думает…» с крутилкой."""
+    brand = s.get("brand", c.theme["accent"]["solid"])
+    mut = c.theme["muted"]
+    c.js.append(f'tl.fromTo("#{cid} .card", {{opacity: 0, y: 70, rotationX: 18, scale: 0.92}}, {{opacity: 1, y: 0, '
+                f'rotationX: 0, scale: 1, duration: 0.38, ease: "power3.out"}}, {a:.3f});')
+    c.js.append(f'tl.to("#{cid} .card", {{opacity: 0, y: -14, duration: 0.16}}, {b - 0.16:.3f});')
+    c.pop(f"#{cid}w", a + 0.2, dur=0.26)
+    req = s.get("request", "")
+    t0 = c.at(s["type_from"]) if s.get("type_from") is not None else a + 0.5
+    t1 = c.at(s["type_to"]) if s.get("type_to") is not None else t0 + min(1.4, 0.05 * len(req))
+    c.type_live(f"{cid}rq", req, t0, t1, b)
+    outs = ""
+    for i, ln in enumerate(s.get("lines", [])):
+        kind = ln.get("kind", "tool")
+        if kind == "think":
+            body = (f'<span id="{cid}sp{i}" style="display:inline-block;color:{brand}">✻</span> '
+                    f'<span style="color:{brand}">{esc(ln["text"])}</span>')
+        else:
+            dot = {"ok": c.theme["success"], "tool": "#FFFFFF"}.get(kind, "#FFFFFF")
+            body = f'<span style="color:{dot}">⏺</span> {esc(ln["text"])}'
+        outs += f'<div id="{cid}o{i}" style="margin-top:14px;opacity:0">{body}</div>'
+        t = c.at(ln["at"]) if ln.get("at") is not None else t1 + 0.3 + 0.4 * i
+        c.slide(f"#{cid}o{i}", t, dx=-12, dur=0.16)
+        if kind == "think":
+            c.js.append(f'tl.fromTo("#{cid}sp{i}", {{rotation: 0}}, {{rotation: 720, duration: 1.6, ease: "none", '
+                        f'immediateRender: false}}, {t:.3f});')
+    term_bg = mix(c.theme["bg_dark"][-1], "#000000", 0.2)
+    dots = "".join(f'<i style="display:inline-block;width:20px;height:20px;border-radius:50%;margin-right:10px;background:{col}"></i>'
+                   for col in ("#FF5F57", "#FEBC2E", "#28C840"))
+    welcome = (f'<div id="{cid}w" style="display:flex;align-items:center;gap:22px;padding:20px 24px;border:2.5px solid {brand};'
+               f'border-radius:16px;opacity:0">{_mascot(brand, 11) if s.get("mascot", True) else ""}'
+               f'<div><div style="color:#FFFFFF;font-weight:700">✻ Welcome to Claude Code!</div>'
+               f'<div style="color:{mut};font-size:26px;margin-top:6px">/help for help</div></div></div>')
+    return (f'<div class="card" style="padding:0;overflow:hidden;background:{term_bg};border:1.5px solid rgba(255,255,255,0.12);'
+            f'box-shadow:0 40px 90px rgba(0,0,0,0.6);transform-origin:50% 0%">'
+            f'<div style="display:flex;align-items:center;padding:16px 22px;background:#E8E8F5;color:{mut};font-size:24px">'
+            f'{dots}<span style="margin:0 auto;font-weight:600">{esc(s.get("title", "claude — ~/projects"))}</span></div>'
+            f'<div style="padding:26px 30px 32px;font-family:Menlo, Monaco, monospace;font-size:34px;color:#E8E8F5;line-height:1.35">'
+            f'{welcome}<div style="margin-top:22px;padding:16px 20px;border:2px solid rgba(255,255,255,0.25);border-radius:12px">'
+            f'<span style="color:{mut}">&gt; </span><span id="{cid}rq">{typed_live(req, f"{cid}rq", brand)}</span></div>{outs}</div></div>')
+
+
+
 TEMPLATES = {"filmstrip": t_filmstrip, "logos_cut": t_logos_cut, "sticker": t_sticker, "tiles": t_tiles, "terminal": t_terminal, "profile": t_profile, "chips": t_chips,
-             "rewrite": t_rewrite, "rows": t_rows, "compare": t_compare, "buttons": t_buttons, "cta": t_cta}
+             "rewrite": t_rewrite, "rows": t_rows, "compare": t_compare, "buttons": t_buttons, "cta": t_cta,
+             "thought": t_thought, "chat": t_chat, "cc_terminal": t_cc_terminal}
 
 
 def build(cards, at, theme, track=1, files=None):

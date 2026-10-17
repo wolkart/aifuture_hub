@@ -472,7 +472,7 @@ def keyed_units(words, dur, opts, hidden=(), edges=(), keys=()):
             u["b"] = round(_cut_at_edges(u["a"], u["b"], e), 3)
         enter = next((en for kt, *_r, en in states if abs(kt - t0) < 1e-6 and en), None)
         parts.append({"style": style, "prefix": f"c{n}u" if keys else "r", "units": units, "px": px,
-                      "enter": enter})
+                      "enter": enter, "t0": t0})
     return parts, states
 
 
@@ -488,9 +488,12 @@ def build(words, dur, opts, theme, hidden=(), edges=(), half_windows=(), accent_
         style, top = state_at(u["a"], style0, states)
         return top if top is not None else style_top(style, opts)
 
-    tf = top_of if keys else None
     for part in parts:
         st, us, pre = part["style"], part["units"], part["prefix"]
+        # слово показывается чуть раньше, чем звучит (u["a"] < начала куска): высота — по куску,
+        # иначе первое слово нового стиля берёт высоту старого (крупные слова уезжали вниз,
+        # а следующее обычное слово — наверх; автор, 2026-10-17)
+        tf = (lambda u, t0=part["t0"]: top_of({"a": max(u["a"], t0 + 1e-3)})) if keys else None
         if st == "word":
             c, b, j = render_words(us, opts, theme, accent_words, half_windows, prefix=pre, top_of=tf)
         elif st == "caps":
@@ -509,7 +512,7 @@ def build(words, dur, opts, theme, hidden=(), edges=(), half_windows=(), accent_
         for i, u in enumerate(us):   # переезд под жест: строка едет, а не прыгает
             for kt, _st, _tp, slide, *_r in states:
                 if slide and u["a"] < kt < u["b"]:
-                    old, new = top_of(u), top_of({"a": kt})
+                    old, new = tf(u), top_of({"a": kt})
                     js.append(f'tl.fromTo("#{pre}{i} {CONTAINER[st]}", {{y: 0}}, {{y: {new - old}, '
                               f'duration: {float(slide):.2f}, ease: "power2.inOut", immediateRender: false}}, '
                               f'{kt:.3f});')

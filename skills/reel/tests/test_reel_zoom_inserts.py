@@ -12,21 +12,33 @@ def spans(n, length=2.0):
 @pytest.mark.parametrize("length", [0.9, 1.5, 2.0, 3.0])
 def test_every_cut_changes_scale_by_at_least_step(words, length):
     rows = zoom.plan(spans(14, length), words, punch=["бесплатно", "сам"])
-    assert all(j >= 0.1 - 1e-9 for j in zoom.jumps(rows)), zoom.jumps(rows)
+    # склейку прячет скачок ≥ 0,1 или быстрый ход в самом начале следующего куска
+    ok = [j >= 0.1 - 1e-9 or nxt["fast_start"] for j, nxt in zip(zoom.jumps(rows), rows[1:])]
+    assert all(ok), [(j, nxt["kind"]) for j, nxt in zip(zoom.jumps(rows), rows[1:])]
+
+
+@pytest.mark.parametrize("length", [0.6, 1.5, 3.0])
+def test_no_static_piece(words, length):
+    rows = zoom.plan(spans(12, length), words)
+    assert all(r["start_scale"] != r["end"] for r in rows), [r["kind"] for r in rows]
+    kinds = {r["kind"].split(" ")[0] + " " + r["kind"].split(" ")[1] for r in rows}
+    if length >= zoom.SHORT:
+        assert {"быстрый наезд", "медленный отъезд", "медленный наезд", "быстрый отъезд"} <= kinds, kinds
 
 
 def test_punch_word_once_and_on_word(words):
     sp = [(0.0, 30.0)]
     rows = zoom.plan(sp + [(30.0, 31.0)], words, punch=["бесплатно"])
     t = wmod.find(words, "бесплатно.")["start"]
-    assert f"{t:.3f}" in rows[0]["js"][1] and "вжух" in rows[0]["kind"]
-    assert rows[0]["end"] == pytest.approx(1.12)
+    assert any(f"{t:.3f}" in j for j in rows[0]["js"]) and "вжух" in rows[0]["kind"]
+    # слово на 4,6 с от начала куска: сначала быстрый наезд к верху 1,35, потом вжух до потолка 1,43
+    assert rows[0]["fast_start"] and rows[0]["end"] == pytest.approx(1.43)
 
 
 def test_plate_window_keeps_zoom_small(words):
     rows = zoom.plan(spans(4), words, plates=[(1.9, 4.1)])
     assert rows[1]["plate"] and rows[1]["end"] <= zoom.PLATE_MAX
-    assert rows[1]["base"] == 1.0
+    assert rows[1]["base"] == 1.15
 
 
 def test_face_center_median_and_default():
@@ -131,19 +143,25 @@ def test_one_reel_one_cta(words, cta, card, end, level):
 
 
 def test_no_zoom_out_jump_into_text_behind(words):
-    """Вжух перед окном «текст за головой» к склейке плавно возвращается к 1,0 — без отпрыгивания."""
+    """Вжух перед окном «текст за головой» к склейке плавно возвращается к низу — без отпрыгивания."""
     sp = [(0.0, 3.0), (3.0, 6.0)]
     punch_word = next(w for w in words if 0.3 < w["start"] < 1.5)
     rows = zoom.plan(sp, words, punch=[punch_word["text"]], plates=[(3.0, 6.0)])
     assert "вжух" in rows[0]["kind"] and rows[1]["plate"]
-    assert rows[0]["end"] == 1.0 and abs(rows[1]["start_scale"] - rows[0]["end"]) < 0.05
-    assert any("scale: 1.0, duration" in j for j in rows[0]["js"])
+    assert rows[0]["end"] == 1.15 and abs(rows[1]["start_scale"] - rows[0]["end"]) < 0.05
+    assert any("scale: 1.15, duration" in j for j in rows[0]["js"])
 
 
 def test_punch_with_strength_and_bounce_back(words):
     rows = zoom.plan([(0.0, 30.0)], words, punch=[{"word": "бесплатно", "add": 0.35, "back": 0.1}])
-    assert "1.00→1.35→1.10" in rows[0]["kind"] and rows[0]["end"] == 1.1
-    assert any("scale: 1.35" in j for j in rows[0]["js"]) and any("scale: 1.1," in j for j in rows[0]["js"])
+    assert "1.35→1.70→1.45" in rows[0]["kind"] and rows[0]["end"] == 1.45
+    assert any("scale: 1.7," in j for j in rows[0]["js"]) and any("scale: 1.45," in j for j in rows[0]["js"])
+
+
+def test_punch_near_piece_start_has_no_lead_push(words):
+    w = next(w for w in words if w["start"] > 1.0)
+    rows = zoom.plan([(w["start"] - 0.5, w["start"] + 2.0)], words, punch=[w["text"]])
+    assert not rows[0]["fast_start"] and rows[0]["kind"].startswith("вжух")
 
 
 # ── горизонтальный исходник в 9:16 ───────────────────────────────────────────

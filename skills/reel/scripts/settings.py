@@ -186,7 +186,7 @@ def resolve(raw, base_dir, accent_name=None, caption_style=None):
         "cta": raw.get("cta") or {},
         "cta_type": cta_type((raw.get("cta") or {}).get("тип")),
         "edit": {
-            "zoom_levels": [float(x) for x in (z.get("уровни") or [1.0, 1.15])],
+            "zoom_levels": [float(x) for x in (z.get("уровни") or [1.15, 1.35])],
             "punch_add": float(whoosh.get("плюс", 0.12)),
             "punch_dur": float(whoosh.get("за_с", 0.16)),
             "layouts": e.get("раскладки") or ["full", "half"],
