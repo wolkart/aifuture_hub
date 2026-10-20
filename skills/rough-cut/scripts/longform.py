@@ -70,7 +70,7 @@ def phrases(words, pause=PAUSE):
 
 
 def mmss(t):
-    t = max(0.0, t)
+    t = round(max(0.0, t), 1)            # сначала округление: 299,96 → 5:00.0, а не 4:60.0
     return f"{int(t // 60):d}:{t % 60:04.1f}"
 
 

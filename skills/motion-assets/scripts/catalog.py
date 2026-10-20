@@ -273,6 +273,7 @@ def card(lib, out, entry, no, tpl_info, media):
         "format": frame_format(media["dims"], entry),
         "duration": float(entry.get("duration") or 0),
         "template": tpl["title"] if tpl else "",
+        "tpl_id": entry.get("template") or "",
         "group": tpl["title"] if tpl else ("свой б-ролл" if kind == "broll" else "без шаблона"),
         "when": when_text(entry, tpl),
         "tags": [str(t) for t in entry.get("tags") or []],
@@ -285,6 +286,27 @@ def card(lib, out, entry, no, tpl_info, media):
         "note": note,
         "files": files,
     }
+
+
+def which(lib, number):
+    """«№23 — сделай …» → что это: id, шаблон и его файл, слоты ассета. Правка шаблона меняет все будущие
+    сцены этого шаблона (потом перерендер образца); правка одного ассета — только его слоты."""
+    nums = load_numbers(numbers_path(lib)).get("numbers") or {}
+    ids = [i for i, n in nums.items() if n == number]
+    if not ids:
+        return f"№{number}: в каталоге нет (numbers.json — {numbers_path(lib)})"
+    entry = next((e for e in library.load(lib)["assets"] if isinstance(e, dict) and e.get("id") == ids[0]), None)
+    if entry is None:
+        return f"№{number} → {ids[0]}: в index.json уже нет (ассет удалён)"
+    tpl = entry.get("template")
+    lines = [f"№{number} → {entry['id']} ({entry.get('kind')}, {entry.get('layout')})"]
+    if tpl:
+        lines += [f"шаблон: {tpl} → {TEMPLATES / (tpl + '.py')}",
+                  f"образец: python3 scripts/scene.py {tpl} --id {entry['id']} --slots <слоты ниже в файле> --render"]
+        lines.append("слоты: " + json.dumps(entry.get("slots") or {}, ensure_ascii=False)[:600])
+    else:
+        lines.append("не из шаблона (свой б-ролл или оверлей) — правка файла, шаблона нет")
+    return "\n".join(lines)
 
 
 def build(lib, out=None, use_ffmpeg=None, tpl_info=None, workers=6):
@@ -634,6 +656,7 @@ details.ev button { border: 0; background: none; padding: 0; color: var(--accent
 .files { font: 11.5px var(--mono); color: var(--ink-3); margin-top: auto; padding-top: 4px; display: flex; flex-wrap: wrap; gap: 4px 10px; }
 .files a { color: var(--ink-2); text-decoration: none; border-bottom: 1px solid var(--line); }
 .files a:hover { color: var(--accent); border-color: var(--accent); }
+.files .ask { font: inherit; color: var(--accent); background: none; border: 0; border-bottom: 1px dashed var(--accent); padding: 0; cursor: pointer; }
 .empty { text-align: center; color: var(--ink-2); padding: 60px 0; }
 footer { color: var(--ink-3); font: 12px var(--mono); padding: 10px 24px 40px; }
 
@@ -798,6 +821,12 @@ footer { color: var(--ink-3); font: 12px var(--mono); padding: 10px 24px 40px; }
     }
     const files = el('div', 'files');
     files.append(el('span', '', a.id));
+    // «№23 — сделай …»: правка по номеру — шаблона (меняются все будущие сцены) или слотов одного ассета
+    const ask = el('button', 'ask', 'скопировать запрос');
+    ask.type = 'button';
+    ask.title = 'Номер, шаблон и id — в буфер; допиши, что поменять, и отправь Claude';
+    ask.addEventListener('click', () => copyText('№' + a.no + (a.tpl_id ? ' · шаблон ' + a.tpl_id : '') + ' · ' + a.id + ' — ', ask));
+    files.append(ask);
     a.files.forEach(f => {
       const l = el('a', '', f.label);
       l.href = f.url; l.target = '_blank'; l.rel = 'noopener';
@@ -841,6 +870,17 @@ footer { color: var(--ink-3); font: 12px var(--mono); padding: 10px 24px 40px; }
     if (last) last.classList.add('now');
   }
 
+  function copyText(text, btn) {
+    const done = () => { const t = btn.textContent; btn.textContent = 'скопировано ✓'; setTimeout(() => { btn.textContent = t; }, 1400); };
+    const fallback = () => {
+      const ta = document.createElement('textarea');
+      ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+      document.body.append(ta); ta.select();
+      try { document.execCommand('copy'); done(); } finally { ta.remove(); }
+    };
+    if (navigator.clipboard && window.isSecureContext) navigator.clipboard.writeText(text).then(done, fallback);
+    else fallback();
+  }
   const cards = new Map(A.map(a => [a.no, buildCard(a)]));
 
   // ── фильтры ──
@@ -986,9 +1026,16 @@ def main(argv=None):
     s = sub.add_parser("serve", parents=[common], help="пересобрать и отдать библиотеку по HTTP")
     s.add_argument("--host", default="127.0.0.1", help="0.0.0.0 — доступ из сети (по IP)")
     s.add_argument("--port", type=int, default=PORT)
+    w = sub.add_parser("which", parents=[common], help="номер из каталога → id, шаблон, файл шаблона, слоты")
+    w.add_argument("number", type=int)
     d = sub.add_parser("deploy-help", parents=[common], help="как вынести каталог на свой сервер")
     d.add_argument("--port", type=int, default=PORT)
     args = ap.parse_args(argv)
+
+    if args.cmd == "which":
+        lib = library.resolve_library(args.library, args.settings)
+        print(which(lib, args.number))
+        return 0
 
     if args.cmd == "deploy-help":
         try:
