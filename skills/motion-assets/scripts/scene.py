@@ -8,10 +8,13 @@
 
 Проект ложится в <библиотека>/<id>/ (index.html + assets/ с GSAP и шрифтами темы).
 Тема — из reel.settings.json автора (нет файла — нейтральная). С --render:
-  full/half → <id>.mp4 (half — 1080×960, верхняя половина кадра);
+  full/half → <id>.mp4 (half — 1080×960, верхняя половина кадра; шаблоны wide_* — 1920×1080);
   overlay   → <id>.mov (ProRes 4444 с альфой; альфа проверяется ffprobe) +
               <id>-green.mp4 (на сплошном #00FF00 — хромакей в CapCut);
-  превью    → <id>-preview.png (момент, когда сцена собрана целиком).
+  превью    → <id>-preview.png (момент, когда сцена собрана целиком);
+  звуки     → <id>-sfx.wav по событиям шаблона (у кого они есть — шаблоны wide_*) и та же
+              дорожка внутри .mov/.mp4 — в монтажке кладётся одним файлом. Синтез — reel/scripts/sfx.py
+              (свои WAV из папки звуков в настройках перебивают синтез по имени).
 Затем запись в index.json добавляется или заменяется по id: опись событий — из
 таймингов самого шаблона.
 Относительный путь иконки в slots.json считается от папки slots.json.
@@ -51,14 +54,17 @@ def load_template(name):
 
 
 def resolve_paths(slots, base):
-    """Относительные пути картинок и записей в слотах — от папки slots.json."""
-    out = dict(slots)
-    for k, v in slots.items():
-        if isinstance(v, str) and Path(v).suffix.lower() in MEDIA_EXT:
-            p = Path(v).expanduser()
-            if not p.is_absolute() and (base / p).exists():
-                out[k] = str((base / p).resolve())
-    return out
+    """Относительные пути картинок и записей в слотах — от папки slots.json, и во вложенных
+    списках и словарях тоже (иконки пунктов, обложки роликов)."""
+    if isinstance(slots, dict):
+        return {k: resolve_paths(v, base) for k, v in slots.items()}
+    if isinstance(slots, list):
+        return [resolve_paths(v, base) for v in slots]
+    if isinstance(slots, str) and Path(slots).suffix.lower() in MEDIA_EXT:
+        p = Path(slots).expanduser()
+        if not p.is_absolute() and (base / p).exists():
+            return str((base / p).resolve())
+    return slots
 
 
 def write_project(tpl, slots, theme, project_dir, kind=None, layout="full"):
@@ -100,6 +106,35 @@ def green_cmd(mov, out, w, h, fps=hf.FPS):
 def preview_cmd(src, t, out):
     """Кадр в момент t: -ss после -i — точный кадр."""
     return ["ffmpeg", "-y", "-v", "error", "-i", str(src), "-ss", f"{t:.3f}", "-frames:v", "1", str(out)]
+
+
+SFX = HERE.parents[1] / "reel" / "scripts" / "sfx.py"
+
+
+def add_sfx(project, id_, built, files, settings_path=None):
+    """Звуки сцены: <id>-sfx.wav + та же дорожка внутри видео. Нет меток — ничего не делает."""
+    cues = built.get("sfx") or []
+    if not cues:
+        return files
+    p = Path(project)
+    cj, wav = p / f"{id_}-sfx.json", p / f"{id_}-sfx.wav"
+    cj.write_text(json.dumps(cues, ensure_ascii=False), encoding="utf-8")
+    cmd = ["uv", "run", "-q", str(SFX), "cues", str(cj), "--out", str(wav), "--total", f"{built['duration']:.3f}"]
+    if settings_path:
+        cmd += ["--settings", str(settings_path)]
+    subprocess.run(cmd, check=True, capture_output=True)
+    cj.unlink()
+    for role in ("mov_alpha", "green", "mp4"):
+        if role not in files:
+            continue
+        vid = p / files[role]
+        tmp = vid.with_name(vid.stem + ".tmp" + vid.suffix)
+        acodec = ["-c:a", "pcm_s16le"] if vid.suffix == ".mov" else ["-c:a", "aac", "-b:a", "192k"]
+        subprocess.run(["ffmpeg", "-y", "-v", "error", "-i", str(vid), "-i", str(wav), "-map", "0:v", "-map", "1:a",
+                        "-c:v", "copy"] + acodec + ["-shortest", str(tmp)], check=True)
+        tmp.replace(vid)
+    files["sfx"] = wav.name
+    return files
 
 
 def render(project, id_, built, quality=None):
@@ -165,7 +200,8 @@ def main(argv=None):
     ap.add_argument("--id")
     ap.add_argument("--slots", help="JSON-файл со слотами (чего нет — дефолт шаблона)")
     ap.add_argument("--theme", choices=("dark", "light"), help="по умолчанию — родная тема шаблона")
-    ap.add_argument("--layout", choices=("full", "half", "overlay"), default="full")
+    ap.add_argument("--layout", choices=("full", "half", "overlay"),
+                    help="по умолчанию — раскладка шаблона (у вертикальных full, у 16:9 — своя)")
     ap.add_argument("--library")
     ap.add_argument("--settings")
     ap.add_argument("--accent", help="акцент из настроек на эту сцену (по имени)")
@@ -193,10 +229,12 @@ def main(argv=None):
         slots = resolve_paths(json.loads(sp.read_text(encoding="utf-8")), sp.resolve().parent)
     merged = _common.merge_slots(tpl.SLOTS, slots)
     project = lib / args.id
-    built = write_project(tpl, merged, theme, project, args.theme, args.layout)
+    layout = args.layout or getattr(tpl, "DEFAULT_LAYOUT", "full")
+    built = write_project(tpl, merged, theme, project, args.theme, layout)
     files = {"project": "index.html"}
     if args.render:
         files.update(render(project, args.id, built, args.quality))
+        files = add_sfx(project, args.id, built, files, args.settings)
     entry = entry_for(args.id, args.template, built, merged, files,
                       [t.strip() for t in args.tags.split(",")], args.describes)
     index_file = library.put(lib, entry)

@@ -7,7 +7,7 @@ import scene
 
 
 def test_list_templates():
-    assert scene.list_templates() == ["big_word", "brand_reveal", "channel_feed", "chat_3d", "coin_flip", "end_card", "flip_board", "laptop_3d", "logo_row", "music_eq", "post_3d", "sources_bot", "timeline_3d"]
+    assert scene.list_templates() == ["big_word", "brand_reveal", "channel_feed", "chat_3d", "coin_flip", "end_card", "flip_board", "laptop_3d", "logo_row", "music_eq", "post_3d", "sources_bot", "timeline_3d", "wide_chips", "wide_drawer", "wide_follow", "wide_list", "wide_message", "wide_number"]
 
 
 def test_cli_list(capsys):
@@ -113,3 +113,12 @@ def test_scripts_and_templates_compile_with_system_python():
     for f in sorted(list((root / "scripts").glob("*.py")) + list((root / "templates").glob("*.py"))):
         r = subprocess.run([py, "-m", "py_compile", str(f)], capture_output=True, text=True)
         assert r.returncode == 0, f"{f.name}: {r.stderr.strip()[-300:]}"
+
+
+def test_resolve_paths_nested(tmp_path):
+    (tmp_path / "a.png").write_bytes(b"x")
+    (tmp_path / "b.jpg").write_bytes(b"x")
+    out = scene.resolve_paths({"avatar": "a.png", "videos": [{"image": "b.jpg", "title": "t.png"}], "n": 2, "miss": "nope.png"},
+                              tmp_path)
+    assert out["avatar"] == str(tmp_path / "a.png") and out["videos"][0]["image"] == str(tmp_path / "b.jpg")
+    assert out["videos"][0]["title"] == "t.png" and out["miss"] == "nope.png" and out["n"] == 2   # нет файла — как есть

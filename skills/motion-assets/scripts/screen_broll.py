@@ -29,6 +29,8 @@ spec.json:
  "tags": ["GitHub", "звёзды"], "describes": "…"
 }
 Координаты камеры — центр текста на странице; "w" — ширина видимой части, CSS-px.
+По умолчанию камера только прокручивает вверх-вниз во всю ширину (автор 2026-10-18: наезд с
+одновременным сдвигом «гуляет» вбок); наезд и "w" работают только с "zoom": true в спеке.
 Текст можно задать шаблоном: "re:[\\d.,]+k stars" — живые цифры (звёзды растут) не хардкодить.
 
   screen_broll.py <spec.json> [--settings <reel.settings.json>] [--library <папка>] [--no-index]
@@ -384,7 +386,10 @@ def render(spec, shot, out_mp4, theme):
             cx, cy = b[0] + b[2] / 2, b[1] + b[3] / 2
         else:
             cx, cy = k.get("x", rw / 2), k.get("y", rh / 2)
-        keys.append({"t": k["t"], "cx": cx, "cy": cy, "w": k.get("w", rw)})
+        if spec.get("zoom"):
+            keys.append({"t": k["t"], "cx": cx, "cy": cy, "w": k.get("w", rw)})
+        else:   # автор 2026-10-18: наезд «гуляет» вбок — по умолчанию статика и прокрутка вверх-вниз
+            keys.append({"t": k["t"], "cx": rw / 2, "cy": cy, "w": rw})
     effects = shot["effects"]
     danger = _rgb(theme["danger"])
     pops = {id(e): _pop_card(e["effect"]["text"], e["effect"].get("sub", ""), theme, spec.get("scheme", "light"))
