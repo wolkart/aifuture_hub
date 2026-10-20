@@ -204,3 +204,12 @@ def test_key_style_top_follows_part_not_lead_in(opts, theme):
     after_div = next(b for b in body if "даже" in text(b))
     assert f"top:{cap.STYLE_TOP['title']}px" in title_div, title_div[:200]
     assert "top:1450px" in after_div, after_div[:200]
+
+
+def test_in_half_needs_most_of_the_word_under_the_window():
+    # слово 46.54–47.66, окно half с 47.60: задевает край — остаётся на своей высоте
+    assert not cap.in_half(46.54, 47.66, [(47.60, 49.94)])
+    # большей частью под окном — на стык
+    assert cap.in_half(47.40, 48.20, [(47.60, 49.94)])
+    assert cap.in_half(48.0, 48.5, [(47.60, 49.94)])
+    assert not cap.in_half(50.0, 50.5, [(47.60, 49.94)])

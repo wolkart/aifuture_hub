@@ -138,6 +138,9 @@ def render_cmd(project_dir, out, fmt="mp4", quality=None, fps=FPS):
         cmd += ["--workers", "1"]
     if quality:
         cmd += ["--quality", quality]
+    if quality == "high":
+        # кадры исходного видео по умолчанию идут через JPEG q80 (-q:v 7): текст скринкаста мылится. PNG — без потерь
+        cmd += ["--video-frame-format", "png"]
     return cmd
 
 

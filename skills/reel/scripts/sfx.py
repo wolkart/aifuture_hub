@@ -10,15 +10,21 @@
   down   — «шшш» вниз: опустил субтитры, стянул шторку; up — то же вверх;
   impact — удар: предмет приземлился, слово-печать;   pop    — щелчок: наклейка, карточка;
   type   — печать клавиш (длина — dur);                tap    — тап по кнопке/ссылке;
-  snip   — ножницы: кусок вырезан.
+  snip   — ножницы: кусок вырезан;                    select — выбран вариант (зелёная галочка);
+  reward — переливчатый «приз»: крупная цифра, итог, особое появление.
 Своя папка звуков в настройках (папки.звуки) перебивает синтез по имени файла: whoosh.wav и т. д.
+Вариации: pop.wav, pop-2.wav, pop-3.wav … — звучат по очереди (одинаковые появления подряд не
+звучат одинаково, как у монтажёров с библиотекой звуков).
 
 В plan.json:
   "sfx": [{"at": <якорь>, "sound": "whoosh", "db": -8, "dur": 0.6, "shift": 0.0}]
+  "sound" — имя из каталога или путь к своему 16-бит WAV («ту-ду-ду» под мем и т. п.).
 db — пик звука в dBFS (по умолчанию −10); голос в финале −14 LUFS, звуки ложатся под него.
 
 usage: uv run sfx.py bed <папка варианта> [--settings reel.settings.json]
        → <вариант>/sfx.wav на всю длину ролика (её подмешивает composite.py final)
+       uv run sfx.py cues <cues.json> --out <файл.wav> --total <секунд> [--settings …]
+       → звуки сцены motion-assets по её событиям: cues.json — [[t, звук, dB], …]
 """
 import argparse
 import json
@@ -29,7 +35,7 @@ from pathlib import Path
 import numpy as np
 
 SR = 48000
-SOUNDS = ("whoosh", "swish", "down", "up", "impact", "pop", "type", "tap", "snip")
+SOUNDS = ("whoosh", "swish", "down", "up", "impact", "pop", "type", "tap", "snip", "select", "reward")
 
 
 def _env(n, attack, release):
@@ -153,6 +159,42 @@ def synth(name, dur=None):
             y[i:i + len(c)] += c[:max(0, min(len(c), n - i))] * g
             i += int(rng.uniform(0.055, 0.095) * SR)
         return _pan(y / (np.abs(y).max() + 1e-9), 0.5, 0.5)
+    if name == "select":   # мягкий «тук» + короткая восходящая пара нот
+        n = int((dur or 0.32) * SR)
+        t = np.arange(n) / SR
+        y = np.zeros(n)
+        c = _click(5, 1500, seed=23)
+        y[:len(c)] += c * 0.35
+        for f0, at in ((1046.5, 0.0), (1568.0, 0.055)):
+            k = int(at * SR)
+            tt = t[:n - k]
+            y[k:] += (np.sin(2 * np.pi * f0 * tt) + 0.25 * np.sin(2 * np.pi * 2 * f0 * tt)) * np.exp(-tt * 22) * 0.6
+        return _pan(y / (np.abs(y).max() + 1e-9), 0.5, 0.5)
+    if name == "reward":   # колокольчики вверх по арпеджио + искры: «открыл сундук»
+        d = dur or 1.1
+        n = int(d * SR)
+        t = np.arange(n) / SR
+        L, R = np.zeros(n), np.zeros(n)
+        notes = (1318.5, 1661.2, 1975.5, 2637.0, 3322.4)        # ми-мажор вверх
+        for i, f0 in enumerate(notes):
+            k = int(i * 0.055 * SR)
+            tt = t[:n - k]
+            bell = sum(a * np.sin(2 * np.pi * f0 * m * tt) * np.exp(-tt * dk)
+                       for m, a, dk in ((1, 1.0, 5.5), (2.76, 0.35, 9), (5.4, 0.12, 14)))
+            pan = 0.3 + 0.4 * i / (len(notes) - 1)
+            L[k:] += bell * (1 - pan) * (0.9 if i < len(notes) - 1 else 1.1)
+            R[k:] += bell * pan * (0.9 if i < len(notes) - 1 else 1.1)
+        rng = np.random.default_rng(29)
+        for _ in range(16):                                      # искры
+            k = int(rng.uniform(0.12, 0.75) * SR)
+            f0 = rng.uniform(4200, 7800)
+            tt = t[:min(n - k, int(0.12 * SR))]
+            sp = np.sin(2 * np.pi * f0 * tt) * np.exp(-tt * 45) * rng.uniform(0.08, 0.2)
+            side = rng.uniform(0, 1)
+            L[k:k + len(tt)] += sp * (1 - side)
+            R[k:k + len(tt)] += sp * side
+        y = np.stack([L, R], axis=1) * _env(n, 0.01, 0.35)[:, None]
+        return y / (np.abs(y).max() + 1e-9)
     raise ValueError(f"звук {name!r}: есть {', '.join(SOUNDS)}")
 
 
@@ -171,18 +213,33 @@ def read_wav(path):
     return y
 
 
-def sound(name, dur=None, folder=None):
-    """Свой файл из папки звуков, если есть, иначе синтез."""
-    if folder and (Path(folder) / f"{name}.wav").exists():
-        return read_wav(Path(folder) / f"{name}.wav")
+def variants(name, folder):
+    """Свои файлы звука по очереди: name.wav, затем name-2.wav, name-3.wav …"""
+    if not folder:
+        return []
+    f = Path(folder)
+    extra = sorted(f.glob(f"{name}-*.wav"), key=lambda p: (len(p.stem), p.stem))
+    return ([f / f"{name}.wav"] if (f / f"{name}.wav").exists() else []) + extra
+
+
+def sound(name, dur=None, folder=None, k=0):
+    """Путь к WAV — этот файл; свой файл из папки звуков (k-я вариация по кругу), если есть; иначе синтез."""
+    if str(name).lower().endswith(".wav"):
+        return read_wav(Path(name).expanduser())
+    vs = variants(name, folder)
+    if vs:
+        return read_wav(vs[k % len(vs)])
     return synth(name, dur)
 
 
 def place(events, total, folder=None):
-    """events: [(t, name, db, dur)] → стерео дорожка длиной total секунд."""
+    """events: [(t, name, db, dur)] → стерео дорожка длиной total секунд; вариации звука — по очереди."""
     bed = np.zeros((int(total * SR) + SR, 2), np.float32)
-    for t, name, db, dur in events:
-        y = sound(name, dur, folder)
+    seen = {}
+    for t, name, db, dur in sorted(events, key=lambda e: e[0]):
+        k = seen.get(name, 0)
+        seen[name] = k + 1
+        y = sound(name, dur, folder, k)
         y = y / (np.abs(y).max() + 1e-9) * 10 ** (db / 20)
         i = max(0, int(t * SR))
         j = min(len(bed), i + len(y))
@@ -201,11 +258,23 @@ def write_wav(path, y):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("op", choices=["bed", "demo"])
-    ap.add_argument("variant")
+    ap.add_argument("op", choices=["bed", "demo", "cues"])
+    ap.add_argument("variant", help="bed — папка варианта; demo — файл .wav; cues — cues.json")
     ap.add_argument("--settings", default=None)
+    ap.add_argument("--out", default=None)
+    ap.add_argument("--total", type=float, default=None)
     args = ap.parse_args()
     sys.path.insert(0, str(Path(__file__).resolve().parent))
+    if args.op == "cues":   # звуки сцены motion-assets: [[t, звук, dB], …]
+        import settings as settings_mod
+        s = settings_mod.load(args.settings) or settings_mod.default()
+        folder = (s.get("folders") or {}).get("sfx")
+        cues = json.loads(Path(args.variant).read_text(encoding="utf-8"))
+        evs = [(float(c[0]), c[1], float(c[2]) if len(c) > 2 else -12.0, None) for c in cues]
+        total = args.total or (max((e[0] for e in evs), default=0) + 1.5)
+        write_wav(args.out, place(evs, total, folder))
+        print(f"звуки сцены: {len(evs)} → {args.out}")
+        return
     if args.op == "demo":   # все звуки подряд — послушать
         out = Path(args.variant)
         evs, t = [], 0.3
@@ -232,7 +301,7 @@ def main():
     out = b.var / "sfx.wav"
     write_wav(out, place(evs, dur, folder))
     for t, name, db, _ in sorted(evs):
-        print(f"  {t:6.2f}  {name:7s} {db:+.0f} dBFS")
+        print(f"  {t:6.2f}  {Path(str(name)).stem:7s} {db:+.0f} dBFS")
     print(f"звуки: {len(evs)} → {out}")
 
 

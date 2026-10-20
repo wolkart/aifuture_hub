@@ -182,6 +182,9 @@ def test_hf_page_and_render_cmd():
     assert 'data-duration="12.346"' in html and 'url("assets/main.ttf")' in html and '"ReelDisplay"; src' not in html
     cmd = hf.render_cmd("proj", "out.webm", "webm")
     assert f"hyperframes@{hf.HF_VERSION}" in cmd and cmd[cmd.index("--format") + 1] == "webm"
+    assert "--video-frame-format" not in cmd
+    hi = hf.render_cmd("proj", "out.mp4", "mp4", "high")   # high: кадры исходного видео без JPEG
+    assert hi[hi.index("--quality") + 1] == "high" and hi[hi.index("--video-frame-format") + 1] == "png"
 
 
 def test_hf_setup_project_copies_theme_fonts(tmp_path, monkeypatch):
@@ -267,6 +270,21 @@ def test_sfx_synth_catalog_and_bed():
     assert bed.shape == (3 * sfx.SR, 2) and abs(bed).max() < 0.5
 
 
+def test_sfx_variants_rotate_in_time_order(tmp_path, monkeypatch):
+    import importlib.util
+    if importlib.util.find_spec("numpy") is None:
+        pytest.skip("numpy только в uv-окружении sfx.py")
+    import sfx
+    for stem in ("pop", "pop-2", "pop-3", "tap"):
+        sfx.write_wav(tmp_path / f"{stem}.wav", sfx.synth("tap"))
+    assert [p.stem for p in sfx.variants("pop", tmp_path)] == ["pop", "pop-2", "pop-3"]
+    assert [p.stem for p in sfx.variants("tap", tmp_path)] == ["tap"] and sfx.variants("swish", tmp_path) == []
+    used = []
+    monkeypatch.setattr(sfx, "read_wav", lambda p: (used.append(Path(p).stem), sfx.synth("tap"))[1])
+    sfx.place([(2.0, "pop", -12, None), (0.5, "pop", -12, None), (1.0, "pop", -12, None), (1.5, "pop", -12, None)], 3.0, tmp_path)
+    assert used == ["pop", "pop-2", "pop-3", "pop"]               # по времени, по кругу
+
+
 def test_film_roll_copies_and_accelerating_passes():
     import build_main
     durs = build_main.roll_durations(0.8, 4)
@@ -302,3 +320,25 @@ def test_level_at_matches_ramp():
     keys = [(1.0, -6.0, 1.0)]
     assert composite.level_at(keys, 0.5) == 0 and composite.level_at(keys, 1.5) == -3.0
     assert composite.level_at(keys, 3.0) == -6.0
+
+
+def test_sfx_takes_own_wav_by_path(tmp_path):
+    np = pytest.importorskip("numpy")
+    import sfx
+    y = (np.sin(np.linspace(0, 200, sfx.SR // 2)) * 0.5).astype(np.float32)
+    p = tmp_path / "sting.wav"
+    sfx.write_wav(p, np.stack([y, y], axis=1))
+    bed = sfx.place([(0.5, str(p), -10, None)], 2.0)
+    assert abs(bed[: sfx.SR // 4]).max() == 0          # до звука тишина
+    assert abs(bed[sfx.SR // 2: sfx.SR]).max() > 0.2   # свой файл на месте
+
+
+def test_tidy_done_keeps_publication_texts_next_to_reels(tmp_path):
+    ex = tmp_path / "export"
+    (ex / "_сборка").mkdir(parents=True)
+    (ex / "R — YouTube.mp4").write_bytes(b"x")
+    (ex / "R — YouTube.txt").write_text("тайтл")
+    (ex / "заметка.txt").write_text("мусор")
+    acts = {p.name for a, p, _, _ in tidy.plan_done(ex) if a == "delete"}
+    assert "R — YouTube.txt" not in acts
+    assert "заметка.txt" in acts and "_сборка" in acts
