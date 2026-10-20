@@ -129,7 +129,11 @@ def font_px(text, word_px):
 
 
 def in_half(a, b, half_windows):
-    return any(a < hb - 0.05 and b > ha + 0.05 for ha, hb in half_windows)
+    """На стык — только то, что окно half закрывает большей частью показа. Слово, которое лишь
+    задевает край окна, остаётся на своей высоте: иначе оно висит на стыке поверх лица там, где
+    кадр ещё полный (автор, 2026-10-18: «получается» на глазах за 0,06 с до вставки)."""
+    d = max(1e-6, b - a)
+    return any(min(b, hb) - max(a, ha) > 0.5 * d for ha, hb in half_windows)
 
 
 def _rgba(hex_color, alpha):

@@ -41,11 +41,22 @@ CUSTOM = {
                    "headline": "Минус *12* минут", "subline": ""},
     "end_card": {"cta": "Ссылка\nв *описании*", "link": "site.example/very-long-link-name",
                  "highlight": "click", "pointer": "cursor", "name": "Канал", "glow": "accent"},
+    "wide_follow": {"yt_name": "Канал", "yt_handle": "kanal", "yt_more": "и ещё 1 ссылка", "yt_logo": "▶", "yt_logo_text": "Видео",
+                    "tg_title": "Канал", "tg_handle": "kanal", "grid": False, "at": 0.5, "yt_at": 2, "link_at": 3, "tg_at": 5},
 }
 
 
 def tpl(name):
     return importlib.import_module(name)
+
+
+def is_wide(name):
+    """Горизонтальный шаблон 16:9 (FORMAT = "16:9"): холст 1920×1080, раскладки full и overlay."""
+    return getattr(tpl(name), "FORMAT", "9:16") == "16:9"
+
+
+def layouts_of(name):
+    return ("full", "overlay") if is_wide(name) else c.LAYOUTS
 
 
 def all_text(r):
@@ -76,7 +87,8 @@ def test_build_shape(name, slots, theme):
     for key in ("css", "body", "js", "duration", "events", "theme_kind", "layout", "bg", "size",
                 "files", "tags", "describes", "preview_t"):
         assert key in r
-    assert r["layout"] == "full" and r["size"] == [1080, 1920]
+    assert r["layout"] == getattr(tpl(name), "DEFAULT_LAYOUT", "full")
+    assert r["size"] == ([1920, 1080] if is_wide(name) else [1080, 1920])
     assert r["theme_kind"] == tpl(name).DEFAULT_KIND
     assert 0 < r["preview_t"] < r["duration"]
 
@@ -104,15 +116,18 @@ def test_seek_safe_js(name, theme):
 
 
 def test_no_hardcoded_colors(name):
-    """Каждый цвет в выдаче должен меняться вместе с темой, кроме белого и чёрного."""
+    """Каждый цвет в выдаче должен меняться вместе с темой, кроме белого и чёрного — и цветов настоящего
+    интерфейса, которые шаблон объявил сам (UI_COLORS: тёмные темы YouTube и Telegram в wide_follow)."""
+    ui = {h.upper() for h in getattr(tpl(name), "UI_COLORS", ())}
+    ui_rgb = {tuple(str(int(h[i:i + 2], 16)) for i in (1, 3, 5)) for h in ui}
     for slots in ({}, CUSTOM.get(name, {})):
         for kind in c.KINDS:
             a = all_text(tpl(name).build(slots, MARK_THEME, kind=kind))
             b = all_text(tpl(name).build(slots, MARK_THEME_2, kind=kind))
             fixed = {h.upper() for h in HEX.findall(a)} & {h.upper() for h in HEX.findall(b)}
-            assert fixed <= NEUTRAL, fixed - NEUTRAL
+            assert fixed <= NEUTRAL | ui, fixed - NEUTRAL - ui
             fixed_rgba = set(RGBA.findall(a)) & set(RGBA.findall(b))
-            assert fixed_rgba <= {("0", "0", "0"), ("255", "255", "255")}, fixed_rgba
+            assert fixed_rgba <= {("0", "0", "0"), ("255", "255", "255")} | ui_rgb, fixed_rgba
 
 
 def test_default_slots_are_neutral(name):
@@ -123,7 +138,7 @@ def test_default_slots_are_neutral(name):
 
 
 def test_theme_colors_flow_in(name):
-    r = tpl(name).build({}, MARK_THEME)
+    r = tpl(name).build({}, MARK_THEME, layout="full")
     text = all_text(r).upper()
     pal = c.palette(MARK_THEME, r["theme_kind"])
     assert pal["acc"].upper() in text or pal["sec"].upper() in text
@@ -136,8 +151,13 @@ def test_unknown_slot_is_error(name, theme):
 
 
 def test_layouts(name, theme):
-    half = tpl(name).build({}, theme, layout="half")
-    assert half["size"] == [1080, 960] and "scale(" in half["body"]
+    if is_wide(name):
+        assert tpl(name).build({}, theme, layout="full")["size"] == [1920, 1080]
+        with pytest.raises(ValueError):
+            tpl(name).build({}, theme, layout="half")
+    else:
+        half = tpl(name).build({}, theme, layout="half")
+        assert half["size"] == [1080, 960] and "scale(" in half["body"]
     over = tpl(name).build({}, theme, layout="overlay")
     assert over["bg"] == "transparent" and over["layout"] == "overlay"
     assert "bgfill" not in over["body"] and 'id="tg' not in over["body"]
@@ -147,7 +167,7 @@ def test_layouts(name, theme):
 
 
 def test_ids_used_in_js_exist(name, theme):
-    for layout in c.LAYOUTS:
+    for layout in layouts_of(name):
         r = tpl(name).build(CUSTOM.get(name, {}), theme, layout=layout)
         ids = set(re.findall(r'id="([^"]+)"', r["body"]))
         used = set(re.findall(r'"#([\w-]+)', r["js"]))
@@ -330,3 +350,87 @@ def test_mix_and_rgba():
 def test_escape_user_text(theme):
     r = tpl("post_3d").build({"name": "<b>я</b>", "headline": "a & b"}, theme)
     assert "<b>я</b>" not in r["body"] and "&lt;b&gt;" in r["body"]
+
+
+# ── горизонтальные 16:9: звуки и группы панели ──────────────────────────────
+
+WIDE = [n for n in NAMES if getattr(importlib.import_module(n), "FORMAT", "") == "16:9"]
+SOUNDS = {"whoosh", "swish", "down", "up", "impact", "pop", "type", "tap", "snip", "select", "reward"}
+
+
+@pytest.mark.parametrize("wname", WIDE)
+def test_wide_sfx_cues_inside(wname, theme):
+    r = tpl(wname).build({}, theme)
+    assert r["sfx"], "у горизонтального шаблона должны быть звуки появления"
+    assert all(0 <= t < r["duration"] and name in SOUNDS and db < 0 for t, name, db in r["sfx"])
+    assert [q[0] for q in r["sfx"]] == sorted(q[0] for q in r["sfx"])
+
+
+def test_drawer_all_group_types(theme):
+    groups = [{"at": 0.6, "type": "list", "title": "Список", "items": [{"icon": "1", "title": "А", "at": 1.0}]},
+              {"at": 3.0, "type": "message", "name": "Клиент", "avatar": "К", "text": "Привет", "reply": "Ответ"},
+              {"at": 6.0, "type": "number", "value": "*24/7*", "caption": "без выходных"},
+              {"at": 8.0, "type": "compare", "left": {"title": "Мак"}, "right": {"title": "Сервер"}, "verdict": "сервер"},
+              {"at": 11.0, "type": "text", "title": "Крупная *фраза*"}]
+    r = tpl("wide_drawer").build({"groups": groups}, theme)
+    for gi in range(len(groups)):
+        assert f'id="g{gi}"' in r["body"]
+    assert ["reward"] == [q[1] for q in r["sfx"] if q[1] == "reward"]          # крупная цифра — «приз»
+    assert r["js"].count("groupOut(") == len(groups) - 1          # последняя группа уходит с панелью
+    assert sum(1 for q in r["sfx"] if q[1] == "whoosh") == 2       # панель въехала и уехала
+    with pytest.raises(ValueError):
+        tpl("wide_drawer").build({"groups": [{"at": 1, "type": "chart"}]}, theme)
+
+
+def test_drawer_choice_and_compare_pick_turn_green(theme, tmp_path):
+    logo = tmp_path / "n8n.svg"
+    logo.write_text('<svg xmlns="http://www.w3.org/2000/svg"/>', encoding="utf-8")
+    groups = [{"at": 0.6, "type": "choice", "title": "Где запускать", "pick": 1, "pick_at": 3.0,
+               "items": [{"icon": "💻", "title": "Мак", "at": 1.0}, {"icon": "🖥", "title": "Сервер", "at": 1.6}]},
+              {"at": 5.0, "type": "compare", "pick": "right", "pick_at": 7.0,
+               "left": {"title": "Огромный сервис", "at": 5.3}, "right": {"icon": str(logo), "title": "Точечно", "at": 6.0}},
+              {"at": 9.0, "type": "text", "icon": str(logo), "title": "Ушёл от *n8n*"}]
+    r = tpl("wide_drawer").build({"groups": groups}, theme)
+    js = r["js"]
+    assert 'id="g0k1"' in r["body"] and 'id="g0k0"' in r["body"] and 'id="g1rk"' in r["body"] and 'id="g1lk"' not in r["body"]
+    assert 'tl.to("#g0o1", { borderColor: OK' in js and 'tl.to("#g0o0", { opacity: 0.42' in js and 'tl.to("#g1l", { opacity: 0.42' in js
+    picks = [q for q in r["sfx"] if q[1] == "select"]
+    assert [q[0] for q in picks] == [3.0, 7.0]
+    assert sum(1 for src, _ in r["files"] if src == str(logo)) == 2
+    with pytest.raises(ValueError):
+        tpl("wide_drawer").build({"groups": [dict(groups[0], pick=5)]}, theme)
+
+
+def test_chips_logo_icon_without_blue_circle(theme, tmp_path):
+    logo = tmp_path / "logo.svg"
+    logo.write_text('<svg xmlns="http://www.w3.org/2000/svg"/>', encoding="utf-8")
+    r = tpl("wide_chips").build({"items": [{"icon": str(logo), "label": "Claude Code", "at": 0.5},
+                                           {"icon": "</>", "label": "Open Code", "at": 1.0}]}, theme)
+    assert '<span class="dot logo"><img' in r["body"] and '<span class="dot"><span' in r["body"]
+
+
+# ── подписка YouTube → Telegram ──────────────────────────────────────────────
+
+def test_follow_cursor_clicks_buttons_in_order(theme):
+    r = tpl("wide_follow").build({"at": 0.3, "yt_at": 1.5, "link_at": 2.6, "tg_at": 4.2}, theme)
+    clicks = [float(x) for x in re.findall(r'click\("#cur", ([\d.]+)\)', r["js"])]
+    assert clicks == [1.5, 2.6, 4.2]
+    targets = re.findall(r'cursorTo\("#(\w+)"', r["js"])
+    assert targets == ["ytb", "ytl", "chb"]                    # курсор — в кнопку по разметке, а не в координаты
+    assert r["duration"] > 4.2 + 1.6 and [e["t"] for e in r["events"]][-1] <= r["duration"]
+    with pytest.raises(ValueError):
+        tpl("wide_follow").build({"yt_at": 3, "link_at": 2}, theme)
+
+
+def test_follow_images_from_slots(tmp_path, theme):
+    for n in ("a.jpg", "b.png", "v0.jpg", "logo.svg"):
+        (tmp_path / n).write_bytes(b"x")
+    r = tpl("wide_follow").build({"yt_avatar": str(tmp_path / "a.jpg"), "tg_avatar": str(tmp_path / "b.png"),
+                                  "yt_logo": str(tmp_path / "logo.svg"),
+                                  "videos": [{"image": str(tmp_path / "v0.jpg"), "title": "Первый"}, {"title": "Второй"}]}, theme)
+    names = {f for _, f in r["files"]}
+    assert names == {"yt-avatar.jpg", "tg-avatar.png", "yt-logo.svg", "yt-video0.jpg"}
+    assert all(f'src="{n}"' in r["body"] for n in names)
+    assert "Первый" in r["body"] and "Второй" in r["body"] and r["body"].count('class="th ph"') == 1
+    assert "Вы подписаны" in r["body"] and "Shorts" in r["body"]
+    assert "Shorts" not in tpl("wide_follow").build({"grid": False}, theme)["body"]

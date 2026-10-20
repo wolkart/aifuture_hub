@@ -6,7 +6,7 @@
       маски, листы проверки и копии медиа в проектах слоёв удаляются, посторонние файлы
       из export/ уезжают в _сборка/.
   --done — автор принял финал, правок больше нет: _сборка/ удаляется целиком, в export/
-      остаются только ролики. Исходники (запись и звук из cut-list) печатаются списком и
+      остаются только ролики (и их .txt с текстами для публикации). Исходники (запись и звук из cut-list) печатаются списком и
       удаляются только с --sources — то есть после «да» автора на прямой вопрос.
 
 Почему сборка не хранится: к законченному ролику автор не возвращается, а оставленная
@@ -45,11 +45,17 @@ def is_reel(p):
     return p.is_file() and p.suffix.lower() == ".mp4"
 
 
+def is_reel_text(p):
+    """Тексты для публикации рядом с роликом (<имя ролика>.txt) — часть ролика, не мусор
+    (урок автора 2026-10-17: копирует тайтл и описание оттуда, YouTube выкладывает позже)."""
+    return p.is_file() and p.suffix.lower() == ".txt" and p.with_suffix(".mp4").is_file()
+
+
 def strays(export):
     """Всё в export/, кроме роликов и _сборка/; старая папка final/ раскрывается по файлам."""
     out = []
     for p in sorted(export.iterdir()) if export.exists() else []:
-        if p.name == BUILD or p.name.startswith(".") or is_reel(p):
+        if p.name == BUILD or p.name.startswith(".") or is_reel(p) or is_reel_text(p):
             continue
         if p.name == "final" and p.is_dir():
             out += [f for f in sorted(p.iterdir()) if not f.name.startswith(".")]
