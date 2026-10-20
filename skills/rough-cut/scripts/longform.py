@@ -43,7 +43,7 @@ EDGE = 0.12       # запас у соседней фразы, когда реж
 CHUNK = 600.0     # кусок чтения, с
 OVERLAP = 60.0
 BIG = 10.0        # рез длиннее — в шлюз обязательно, даже если не по смыслу
-FILLER = re.compile(r"^(э+|э-э+|ээ+|эм+|э-м+|м+|м-м+|мм+|хм+|а-а+|uh+|um+|erm+|hmm+)$", re.I)
+FILLER = re.compile(r"^(э+(-э+)*|эм+|э-м+|м+(-м+)*|хм+|а(-а+)+|uh+|um+|erm+|hmm+)$", re.I)  # Scribe: «Э-э-э,», «м-м-м»
 PRIORITY = {"semantic": 4, "retake": 3, "filler": 2, "silence": 1}
 
 
@@ -130,7 +130,7 @@ def quote(phr, a, b, limit=70):
 def filler_cuts(words):
     return [{"start": round(max(0.0, w["start"] - 0.03), 3), "end": round(w["end"] + 0.03, 3), "action": "cut",
              "source": "filler", "reason": f"запинка «{w['text']}»", "confidence": 0.9}
-            for w in words if FILLER.match(w["text"].strip(".,!?…").lower())]
+            for w in words if FILLER.match(w["text"].strip(".,!?…—-").lower())]
 
 
 def merge(cuts):

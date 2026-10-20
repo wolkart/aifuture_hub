@@ -51,6 +51,12 @@ def test_filler_cuts_only_clear_fillers():
     assert [c["reason"] for c in cuts] == ["запинка «э-э»", "запинка «Ммм...»", "запинка «эм,»"]
 
 
+def test_filler_cuts_scribe_triple_hyphen():
+    # Scribe пишет длинные запинки через дефис: «Э-э-э,», «м-м-м», «э-э-э--»
+    cuts = lf.filler_cuts(W("Э-э-э,@0-0.4 как@0.5-0.7 м-м-м@0.8-1.2 есть,@1.3-1.5 э-э-э--@1.6-2.0"))
+    assert [c["reason"] for c in cuts] == ["запинка «Э-э-э,»", "запинка «м-м-м»", "запинка «э-э-э--»"]
+
+
 def test_merge_keeps_semantic_reason():
     cuts = lf.merge([
         {"start": 1.0, "end": 3.0, "action": "cut", "source": "silence", "reason": "тишина", "confidence": 0.9},
