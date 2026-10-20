@@ -238,6 +238,7 @@ def main(argv=None):
     entry = entry_for(args.id, args.template, built, merged, files,
                       [t.strip() for t in args.tags.split(",")], args.describes)
     index_file = library.put(lib, entry)
+    catalog_html = library.refresh_catalog(lib)
 
     if args.json:
         print(json.dumps(entry, ensure_ascii=False, indent=2))
@@ -252,6 +253,8 @@ def main(argv=None):
     if not args.render:
         print("  рендер: тот же вызов с --render")
     print(f"Индекс: {index_file}")
+    if catalog_html:
+        print(f"Каталог: {catalog_html}")
     return 0
 
 

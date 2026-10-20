@@ -74,6 +74,17 @@ def put(library, entry):
 
 # ── валидация ────────────────────────────────────────────────────────────────
 
+def refresh_catalog(library):
+    """Каталог приёмов (<библиотека>/_каталог/index.html) — после каждой записи в библиотеку: страница
+    открывается файлом и всегда свежая, catalog.py руками не запускается. Сбой — предупреждение, не ошибка."""
+    try:
+        import catalog                     # catalog сам импортирует library — поэтому здесь, а не наверху
+        return catalog.build(library)["html"]
+    except Exception as e:                 # noqa: BLE001 — запись в библиотеку важнее страницы
+        print(f"  ⚠ каталог не пересобран: {e}", file=sys.stderr)
+        return None
+
+
 def _num(x):
     return isinstance(x, (int, float)) and not isinstance(x, bool)
 
@@ -336,6 +347,9 @@ def main(argv=None):
         entry = json.loads(Path(args.entry_json).read_text(encoding="utf-8"))
         path = put(lib, entry)
         print(f"Записано: {entry['id']} → {path}")
+        html = refresh_catalog(lib)
+        if html:
+            print(f"Каталог: {html}")
         miss = missing_files(lib, entry)
         if miss:
             print("  нет файлов: " + ", ".join(miss))

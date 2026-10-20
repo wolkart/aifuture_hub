@@ -122,3 +122,14 @@ def test_resolve_paths_nested(tmp_path):
                               tmp_path)
     assert out["avatar"] == str(tmp_path / "a.png") and out["videos"][0]["image"] == str(tmp_path / "b.jpg")
     assert out["videos"][0]["title"] == "t.png" and out["miss"] == "nope.png" and out["n"] == 2   # нет файла — как есть
+
+
+def test_scene_refreshes_catalog(tmp_path, fake_gsap, capsys):
+    """Каталог — файл, который всегда свежий: каждая запись сцены пересобирает _каталог/index.html."""
+    lib = tmp_path / "lib"
+    scene.main(["coin_flip", "--id", "c1", "--library", str(lib), "--settings", str(tmp_path / "x.json")])
+    html = lib / "_каталог" / "index.html"
+    assert html.exists() and "c1" in (lib / "_каталог" / "data.json").read_text(encoding="utf-8")
+    scene.main(["sources_bot", "--id", "s2", "--library", str(lib), "--settings", str(tmp_path / "x.json")])
+    assert "s2" in (lib / "_каталог" / "data.json").read_text(encoding="utf-8")
+    assert "Каталог:" in capsys.readouterr().out
