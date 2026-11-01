@@ -39,6 +39,7 @@ def report():
                          "«только тишина»"),
         "missing": missing,
         "scribe": scribe_status(),
+        "deepgram": deepgram_status(),
     }
 
 
@@ -47,6 +48,13 @@ def scribe_status():
     import scribe
     return ("ключ есть — --backend scribe доступен (~$0.22 за час звука)" if scribe.api_key()
             else "нет ELEVENLABS_API_KEY — только локальный whisper (запинки он часто не пишет)")
+
+
+def deepgram_status():
+    """Запасной облачный транскрипт с точными временами слов (сам ключ не печатается)."""
+    import deepgram
+    return ("ключ есть — --backend deepgram доступен (~$0.26 за час звука)" if deepgram.api_key()
+            else "нет DEEPGRAM_API_KEY")
 
 
 def main():
@@ -59,6 +67,7 @@ def main():
         return
     print(f"Платформа: {r['platform']}  |  whisper-бэкенд: {r['whisper_backend']}")
     print(f"Scribe: {r['scribe']}")
+    print(f"Deepgram: {r['deepgram']}")
     if r["ok"]:
         print("Окружение готово. " + r["whisper_note"])
     else:

@@ -120,3 +120,8 @@ def test_build_and_restore_cli(tmp_path):
                        capture_output=True, text=True)
     assert "Возвращено по просьбе" in r.stdout
     assert not any(s.get("source") == "semantic" for s in json.loads(out.read_text())["segments"])
+
+
+def test_mmss_rounds_before_split():
+    import longform
+    assert longform.mmss(299.96) == "5:00.0" and longform.mmss(59.94) == "0:59.9" and longform.mmss(-1) == "0:00.0"

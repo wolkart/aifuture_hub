@@ -152,6 +152,19 @@ def test_build_html_from_mini_library(tmp_path):
     assert "@import" not in html and "cdn" not in html.lower()
 
 
+def test_which_number_to_template_and_copy_button(tmp_path):
+    lib = make_lib(tmp_path, [scene(), broll()])
+    catalog.build(lib, use_ffmpeg=False, tpl_info=TPL)
+    data = json.loads((lib / "_каталог" / "data.json").read_text(encoding="utf-8"))
+    by = {a["id"]: a for a in data["assets"]}
+    assert by["tg-coin"]["tpl_id"] == "coin_flip" and by["gh-repo"]["tpl_id"] == ""
+    w = catalog.which(lib, by["tg-coin"]["no"])
+    assert "tg-coin" in w and "coin_flip.py" in w and "--render" in w
+    assert "шаблона нет" in catalog.which(lib, by["gh-repo"]["no"])
+    assert "нет" in catalog.which(lib, 999)
+    assert "скопировать запрос" in (lib / "_каталог" / "index.html").read_text(encoding="utf-8")
+
+
 def test_build_quotes_unsafe_file_names(tmp_path):
     e = broll("t1", files={"mp4": "t1/t1 — Telegram (моушн, 14 с).mp4"}, describes="</script>")
     lib = make_lib(tmp_path, [e])

@@ -1,7 +1,7 @@
 """Раскладка папки сборки. Только stdlib.
 
 export/                      ← рядом с исходниками (как у rough-cut)
-  <стем> — <метка>.mp4       ← готовый ролик, прямо здесь
+  <название> — <площадка>.mp4 ← готовый ролик, прямо здесь («5 MCP — Instagram.mp4»)
   _сборка/                   ← живёт, пока идёт работа; финал принят — удаляется (tidy.py --done)
     <стем>.cutlist.json      ← cut-list rough-cut (канон резки; имя — как у rough-cut)
     <стем>.roughcut.mp4      ← смонтированный черновик; в режиме subs — ссылка
@@ -21,6 +21,7 @@ export/                      ← рядом с исходниками (как у
 Каждый скрипт принимает папку варианта и находит общие файлы уровнем выше.
 """
 import json
+import re
 from pathlib import Path
 
 
@@ -68,6 +69,21 @@ class Build:
         if self.roughcut.is_symlink():
             return Path(self.roughcut.resolve()).stem
         return self.export.parent.name
+
+    @property
+    def title(self):
+        """Название ролика: папка исходников без номера в начале («3 5 MCP» → «5 MCP»)."""
+        return re.sub(r"^\d+\s+", "", self.export.parent.name).strip() or self.stem
+
+    def final_path(self, plan=None, label=None):
+        """Готовый ролик: export/<название> — <площадка>.mp4. Коротко и понятно, что за ролик:
+        номер камеры, акцент и стиль субтитров в имя не идут (метка теста — во frontmatter волта).
+        Название — "title" плана, иначе папка исходников; площадка — --label или "label" плана."""
+        if plan is None:
+            plan = self.load_plan() if self.plan.exists() else {}
+        title = plan.get("title") or self.title
+        label = label or plan.get("label")
+        return self.final / (f"{title} — {label}.mp4" if label else f"{title}.mp4")
 
     def load_plan(self):
         return json.loads(self.plan.read_text(encoding="utf-8"))

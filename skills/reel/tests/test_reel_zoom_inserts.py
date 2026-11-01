@@ -194,3 +194,13 @@ def test_render_html_blur_adds_background_video():
     import build_main
     html = build_main.render_html(5.0, [], [], [], "#000000", [], (), ("#cam video {}", "blur"))
     assert 'id="bgblur"' in html and "background: transparent" in html
+
+
+def test_face_first_warns_on_full_broll_at_start():
+    import inserts as ins
+    full0 = {"n": 0, "a": 0.0, "layout": "full"}
+    half0 = {"n": 0, "a": 0.0, "layout": "half"}
+    later = {"n": 1, "a": 2.4, "layout": "full"}
+    assert ins.check_face_first([full0, later])[0]["level"] == "warn"
+    assert ins.check_face_first([half0, later]) == []
+    assert ins.check_face_first([later]) == []

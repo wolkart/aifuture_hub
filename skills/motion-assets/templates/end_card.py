@@ -14,6 +14,7 @@ CTA, в одном ролике одно из двух (в reel это `cta.ти
 Ссылка на плашке набрана шрифтом темы, а не вырезана из скриншота: на мелком
 скриншоте вырезка мылится, набор остаётся резким при любом увеличении.
 """
+import math
 import struct
 import subprocess
 from pathlib import Path
@@ -41,6 +42,10 @@ SLOTS = {
     "link": {"about": "текст ссылки на плашке", "default": "example.com/link"},
     "name": {"about": "имя на нарисованной карточке (без профиля)", "default": "Мой профиль"},
     "highlight": {"about": "приём выделения: pop | click | zoom", "default": "pop"},
+    "lift": {"about": "что выходит из карточки (только pop): link — набранная плашка ссылки | shot — кусок "
+                      "link_box со скриншота (карточка видео, кнопка), link — подпись под ним", "default": "link"},
+    "lift_image": {"about": "lift: shot — картинка резче вместо вырезки (обложка видео в HD); пусто — вырезка",
+                   "default": ""},
     "pointer": {"about": "указатель: auto (click — курсор, иначе тап) | tap | cursor | none",
                 "default": "auto"},
     "tone": {"about": "тон скриншота: auto | light | dark", "default": "auto"},
@@ -52,6 +57,10 @@ SLOTS = {
 CARD_CY = 1050          # центр карточки по вертикали (full)
 BEZEL = 18              # стеклянная рамка вокруг скриншота
 PILL_PX = 46            # кегль ссылки на плашке
+LIFTS = ("link", "shot")
+CAP_PX = 34             # кегль подписи под картинкой (lift: shot)
+PLATE_R = 26            # скругление карточки-вырезки
+SAFE_BOTTOM = 1450      # ниже — интерфейс площадки поверх ролика (ник, подпись, ссылка)
 PERSPECTIVE = 1800
 T_CARD, T_HL = 0.2, 1.35
 BLOBS = [("left", -160, 260, 560, "sec"), ("right", -180, 1180, 600, "acc")]
@@ -150,6 +159,29 @@ def pill_size(link):
     return round(text_width(link, PILL_PX) * 1.06 + PILL_PX * 1.0 + 16 + 2 * 30), round(PILL_PX * 1.25 + 36)
 
 
+def plate(s, g, img):
+    """lift: shot — карточка-вырезка: картинка (lift_image или кусок link_box) + подпись.
+    Шире места на скриншоте в 1,12 раза: выходя к зрителю, она растёт. → словарь размеров."""
+    lw_src, lh_src = g["lw"] / g["k"], g["lh"] / g["k"]
+    if s["lift_image"]:
+        p = Path(str(s["lift_image"])).expanduser()
+        if not p.exists():
+            raise ValueError(f"lift_image не найден: {s['lift_image']}")
+        iw, ih = image_size(p)
+        src = (str(p), f"lift{p.suffix.lower()}")
+    else:
+        iw, ih, src = lw_src, lh_src, None
+    pw = min(820, round(g["lw"] * 1.12))
+    img_h = round(pw * ih / iw)
+    cap = s["link"] if s["link"] != SLOTS["link"]["default"] else ""
+    # кириллица жирным шире оценки text_width (замер: ~0,63 em на знак) плюс перенос по словам — запас 30 %
+    lines = min(3, max(1, math.ceil(text_width(cap, CAP_PX) * 1.3 / (pw - 48)))) if cap else 0
+    cap_h = round(lines * CAP_PX * 1.22 + 40) if cap else 0
+    return {"w": pw, "h": img_h + cap_h, "img_h": img_h, "cap": cap, "lines": lines, "src": src,
+            "k": pw / lw_src, "x": g["crop"][0] + g["lx"] / g["k"], "y": g["crop"][1] + g["ly"] / g["k"],
+            "shot": img}
+
+
 def geometry(s, img):
     """Размер карточки, где на ней ссылка и масштаб скриншота. Координаты — от левого
     верхнего угла лица карточки (без рамки)."""
@@ -194,6 +226,33 @@ def colors(pal, s, tone):
         "dim": "rgba(255, 255, 255, 0.32)" if light_card else "rgba(0, 0, 0, 0.4)",
         "edge": c.mix(pal["bg1"], pal["sec"], 0.35) if not pal["dark"] else c.mix(pal["deep"], pal["sec"], 0.3),
     }
+
+
+def plate_css(pl, col):
+    """Карточка-вырезка вместо плашки ссылки: картинка сверху, подпись снизу, кнопка «▶» по тапу."""
+    if pl["src"]:
+        img = "left: 0; top: 0; width: 100%; height: 100%; object-fit: cover;"
+    else:
+        iw, ih = image_size(pl["shot"])
+        img = (f"left: {-pl['x'] * pl['k']:.1f}px; top: {-pl['y'] * pl['k']:.1f}px; "
+               f"width: {iw * pl['k']:.1f}px; height: {ih * pl['k']:.1f}px;")
+    return f"""
+#pill, #pglow, .rip {{ border-radius: {PLATE_R}px; }}
+#pill {{ display: block; overflow: hidden; white-space: normal; text-align: left; }}
+.plimg {{ position: relative; width: {pl['w']}px; height: {pl['img_h']}px; overflow: hidden; }}
+.plimg img {{ position: absolute; max-width: none; {img} }}
+.pcap {{ padding: 18px 24px 22px; font-size: {CAP_PX}px; font-weight: 700; line-height: 1.22;
+  color: {col['face_ink']}; }}
+.pcap span {{ display: -webkit-box; -webkit-line-clamp: {pl['lines'] or 1}; -webkit-box-orient: vertical;
+  overflow: hidden; }}
+#play {{ position: absolute; left: 50%; top: 50%; width: 140px; height: 140px; margin: -70px 0 0 -70px;
+  border-radius: 50%; background: rgba(0, 0, 0, 0.55); box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.9);
+  display: flex; align-items: center; justify-content: center; opacity: 0; }}
+#play svg {{ width: 70px; height: 70px; margin-left: 8px; }}
+"""
+
+
+PLAY = '<svg viewBox="0 0 24 24"><path d="M6 4 L20 12 L6 20 Z" fill="#FFFFFF"/></svg>'
 
 
 def css(pal, g, col, pill_w, pill_h, layout):
@@ -313,9 +372,17 @@ def build(slots, theme, kind=None, layout="full"):
         raise ValueError(f"highlight {s['highlight']!r}: один из {', '.join(HIGHLIGHTS)}")
     if s["pointer"] not in POINTERS:
         raise ValueError(f"pointer {s['pointer']!r}: один из {', '.join(POINTERS)}")
+    if s["lift"] not in LIFTS:
+        raise ValueError(f"lift {s['lift']!r}: один из {', '.join(LIFTS)}")
+    shot = s["lift"] == "shot"
+    if shot and s["highlight"] != "pop":
+        raise ValueError("lift: shot — только с highlight: pop (вырезка выходит из карточки к зрителю)")
     pal = c.palette(theme, kind or DEFAULT_KIND)
     img, file_ = source(s)
+    if shot and img is None:
+        raise ValueError("lift: shot — нужен скриншот в profile: вырезать не из чего")
     g = geometry(s, img)
+    pl = plate(s, g, img) if shot else None
     tone = s["tone"]
     if tone == "auto":
         luma = mean_luma(img, [int(v) for v in g["crop"]]) if img else None
@@ -323,7 +390,7 @@ def build(slots, theme, kind=None, layout="full"):
     col = colors(pal, s, tone)
     hl = s["highlight"]
     pointer = s["pointer"] if s["pointer"] != "auto" else ("cursor" if hl == "click" else "tap")
-    pill_w, pill_h = pill_size(s["link"])
+    pill_w, pill_h = (pl["w"], pl["h"]) if shot else pill_size(s["link"])
     # подсказка над ссылкой, если ссылка внизу карточки; иначе под ней — не закрывать имя
     bub_below = (g["ly"] + g["lh"] / 2) / g["ch"] < 0.6
 
@@ -393,6 +460,10 @@ def build(slots, theme, kind=None, layout="full"):
         tap_dx, tap_dy = pill_w * pill_s * 0.18, pill_h * pill_s * 0.15
         lift_x = 0
     elif hl == "pop":
+        # высокая карточка-вырезка поднимается над нижней зоной кадра: там у шортсов и рилсов
+        # площадка кладёт ник, подпись и плашку ссылки
+        f_lift = PERSPECTIVE / (PERSPECTIVE - 170)
+        lift_y = 34 if not shot else min(34, (SAFE_BOTTOM - card_top - lcy - pill_h * f_lift / 2) / f_lift)
         js += [
             f'tl.fromTo("#card", {{ rotationX: 13, rotationY: -9 }}, {{ rotationX: 8, rotationY: -3, '
             f'duration: {c.fmt(dur - 1.15)}, ease: "sine.inOut", immediateRender: false }}, 1.15);',
@@ -401,13 +472,15 @@ def build(slots, theme, kind=None, layout="full"):
             f'tl.fromTo("#pill", {{ opacity: 0, scale: {s0:.3f}, xPercent: -50, yPercent: -50 }}, '
             f'{{ opacity: 1, scale: 1, xPercent: -50, yPercent: -50, duration: 0.6, ease: "back.out(1.5)" }}, '
             f'{c.fmt(T_HL + 0.04)});',
-            f'tl.fromTo("#lift", {{ x: 0, y: 0, z: 0 }}, {{ x: {tx - lcx:.1f}, y: 34, z: 170, duration: 0.6, '
+            f'tl.fromTo("#lift", {{ x: 0, y: 0, z: 0 }}, {{ x: {tx - lcx:.1f}, y: {lift_y:.1f}, z: 170, duration: 0.6, '
             f'ease: "back.out(1.3)" }}, {c.fmt(T_HL + 0.08)});',
             f'tl.fromTo("#pglow", {{ opacity: 0, xPercent: -50, yPercent: -50 }}, '
             f'{{ opacity: 0.6, xPercent: -50, yPercent: -50, duration: 0.5 }}, {c.fmt(T_HL + 0.3)});',
         ]
         rip_scale = 1.0
         tap_dx, tap_dy = pill_w * 0.2, pill_h * 0.12
+        if shot:            # тап — по картинке рядом с центром, где всплывёт «▶»
+            tap_dx, tap_dy = pill_w * 0.14, -pill_h / 2 + pl["img_h"] * 0.62
         lift_x = tx - lcx
     else:   # click
         js += [
@@ -448,6 +521,9 @@ def build(slots, theme, kind=None, layout="full"):
     if hl != "click":
         js.append(f'tl.fromTo("#pill", {{ scale: {rip_scale:.3f} }}, {{ scale: {rip_scale * 0.93:.3f}, '
                   f'duration: 0.09, yoyo: true, repeat: 1, immediateRender: false }}, {c.fmt(press)});')
+    if shot:
+        js.append(f'tl.fromTo("#play", {{ opacity: 0, scale: 0.4 }}, {{ opacity: 1, scale: 1, duration: 0.4, '
+                  f'ease: "back.out(2)" }}, {c.fmt(press + 0.12)});')
     for i in range(3):
         js.append(f'tl.fromTo("#rp{i}", {{ opacity: 0.95, scale: {rip_scale:.3f}, xPercent: -50, yPercent: -50 }}, '
                   f'{{ opacity: 0, scale: {rip_scale * (1.45 + 0.35 * i):.3f}, xPercent: -50, yPercent: -50, '
@@ -479,6 +555,10 @@ def build(slots, theme, kind=None, layout="full"):
     elif pointer == "tap":      # тап-кружок центрирован на точке нажатия
         ptr_html = '<div id="ptr" style="margin:-38px 0 0 -38px"><div id="tap"></div></div>'
     pill_inner = f'{CHAIN}<span>{c.esc(s["link"])}</span>'
+    if shot:
+        pic = (pl["src"] or file_)[1]
+        pill_inner = (f'<div class="plimg"><img src="{pic}" alt="" /><div id="play">{PLAY}</div></div>'
+                      + (f'<div class="pcap"><span>{c.esc(pl["cap"])}</span></div>' if pl["cap"] else ""))
     if hl == "click":           # клик по самой карточке: волны и курсор на поверхности, подсказка над ней
         surface = rips + ptr_html
         lift_inner = ctr("bub", pill_inner + f'<div class="tail{" up" if bub_below else ""}"></div>')
@@ -513,7 +593,12 @@ def build(slots, theme, kind=None, layout="full"):
         c.ev(1.15, "карточка видна целиком, наклон в 3D"),
         c.ev(0.95, "блик проходит по карточке"),
     ]
-    if hl == "pop":
+    what = f"карточка «{pl['cap']}»" if shot and pl["cap"] else ("кусок скриншота" if shot else None)
+    if hl == "pop" and shot:
+        events += [c.ev(T_HL, "остальная страница приглушается, место карточки подсвечено"),
+                   c.ev(T_HL + 0.08, f"{what} выходит со страницы к зрителю"),
+                   c.ev(T_HL + 0.7, f"{what} видна целиком, крупно")]
+    elif hl == "pop":
         events += [c.ev(T_HL, "остальная карточка приглушается, ссылка подсвечена на месте"),
                    c.ev(T_HL + 0.08, f"ссылка «{s['link']}» выходит из карточки плашкой к зрителю"),
                    c.ev(T_HL + 0.7, "плашка со ссылкой видна целиком")]
@@ -526,14 +611,18 @@ def build(slots, theme, kind=None, layout="full"):
                    c.ev(T_HL + 0.7, "маркер под ссылкой"),
                    c.ev(T_HL + 1.05, "рамка вокруг ссылки")]
     if pointer != "none":
-        events.append(c.ev(press, f"{'клик курсором' if pointer == 'cursor' else 'тап'} по ссылке, волны"))
+        events.append(c.ev(press, f"{'клик курсором' if pointer == 'cursor' else 'тап'} по "
+                                  f"{'карточке' if shot else 'ссылке'}, волны"))
+    if shot:
+        events.append(c.ev(press + 0.12, "на картинке всплывает кнопка «▶»"))
     if hl == "click":
         events.append(c.ev(bub_t, f"всплывает подсказка «{s['link']}»"))
         events.append(c.ev(bub_t + 0.45, "подсказка со ссылкой видна целиком"))
     events.append(c.ev(press + 0.6, "удержание: свечение и редкие волны до конца"))
-    describes = (f"концовка-ссылка ({names[hl]}): {src_name} в 3D-рамке, ссылка «{s['link']}» "
+    target = what if shot else f"ссылка «{s['link']}»"
+    describes = (f"концовка-ссылка ({names[hl]}): {src_name} в 3D-рамке, {target} "
                  f"выделяется, призыв «{h['plain']}»; без кодового слова")
-    style = c.base_css(pal, layout) + css(pal, g, col, pill_w, pill_h, layout)
-    files = [file_] if file_ else []
+    style = c.base_css(pal, layout) + css(pal, g, col, pill_w, pill_h, layout) + (plate_css(pl, col) if shot else "")
+    files = [f for f in (file_, pl and pl["src"]) if f]
     return c.result(style, body, js, dur, events, pal, layout, bg, size, files,
                     BASE_TAGS + [names[hl]], describes, preview_t=min(press + 0.9, dur - 0.1))

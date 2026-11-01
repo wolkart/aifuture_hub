@@ -1,11 +1,14 @@
 #!/usr/bin/env python3
 """Пословный транскрипт: mlx-whisper (Apple Silicon) / faster-whisper (остальные) /
-ElevenLabs Scribe (облако, --backend scribe).
+ElevenLabs Scribe (облако, --backend scribe) / Deepgram Nova-3 (облако, --backend deepgram).
 
 Локальный Whisper сам перезапускает себя через uv с нужной зависимостью — вызывать
 можно голым python3. Первый запуск скачивает модель (~1.5 ГБ, разово).
 Scribe — когда в записи много запинок («э-э», «м-м»): Whisper их обычно не пишет,
 Scribe пишет дословно. Облако, ~$0.22 за час звука, нужен ELEVENLABS_API_KEY (scribe.py).
+Deepgram — запасной облачный путь с точными пословными временами: `--backend scribe` сам
+переходит на него, когда у Scribe кончились кредиты (DEEPGRAM_API_KEY, deepgram.py), а без
+облака — на локальный whisper.
 """
 import argparse
 import json
@@ -42,6 +45,26 @@ def normalize_faster(segments):
     return {"text": text, "words": words}
 
 
+# Очередь облачных бэкендов: кончились кредиты / нет ключа / ошибка — берётся следующий,
+# пустая очередь — локальный whisper. Запасные варианты — references/asr-options.md.
+CLOUD_CHAIN = {"scribe": ["scribe", "deepgram"], "deepgram": ["deepgram"]}
+
+
+def run_cloud(audio, language, chain):
+    """→ (результат первого сработавшего облака или None, [причины, почему пропущены прочие])."""
+    errors = []
+    for name in chain:
+        mod = __import__(name)
+        if not mod.api_key():
+            errors.append(f"{name}: нет ключа")
+            continue
+        try:
+            return mod.run(audio, language), errors
+        except SystemExit as e:
+            errors.append(str(e))
+    return None, errors
+
+
 def run(audio, backend, model):
     if backend == "mlx":
         import mlx_whisper
@@ -55,19 +78,24 @@ def run(audio, backend, model):
 def main():
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("audio")
-    ap.add_argument("--backend", choices=["auto", "mlx", "faster", "scribe"], default="auto")
-    ap.add_argument("--language", default=None, help="код языка для scribe (ru); пусто — автоопределение")
+    ap.add_argument("--backend", choices=["auto", "mlx", "faster", "scribe", "deepgram"], default="auto")
+    ap.add_argument("--language", default=None, help="код языка для scribe/deepgram (ru); пусто — автоопределение (deepgram — ru)")
     ap.add_argument("--model", default=None)
     ap.add_argument("-o", "--out", default=None, help="куда писать words.json (по умолчанию export/)")
     ap.add_argument("--_direct", action="store_true", help=argparse.SUPPRESS)
     args = ap.parse_args()
-    if args.backend == "scribe":
-        import scribe
-        result = scribe.run(args.audio, args.language)
-        write(result, args)
-        print(f"scribe: слов {len(result['words'])}, событий {len(result['events'])}, "
-              f"≈ ${result['cost_usd']}", file=sys.stderr)
-        return
+    if args.backend in CLOUD_CHAIN:
+        result, errors = run_cloud(args.audio, args.language, CLOUD_CHAIN[args.backend])
+        for e in errors:
+            print(f"⚠ {e} → следующий в очереди", file=sys.stderr)
+        if result:
+            write(result, args)
+            print(f"{result['backend']}: слов {len(result['words'])}, событий {len(result['events'])}, "
+                  f"≈ ${result['cost_usd']}", file=sys.stderr)
+            return
+        print("⚠ облако недоступно → локальный whisper (дубли и запинки пишет хуже, "
+              "границы резов проверять по звуку)", file=sys.stderr)
+        args.backend = "auto"
     backend = pick_backend(override=args.backend)
     model = args.model or DEFAULT_MODEL[backend]
     if not getattr(args, "_direct"):

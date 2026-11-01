@@ -76,7 +76,10 @@ uv run scripts/silence_cut.py <видео> [--audio <звук OBS>] [--out <cutl
    **Много запинок** («э-э», «м-м» — обычно длинные записи) — `--backend scribe --language ru`:
    локальный Whisper «чистит» речь и запинки в транскрипт часто не пишет, тогда Decide их
    не видит. Scribe (ElevenLabs) пишет дословно: облако, ~$0.22 за час звука, ключ
-   `ELEVENLABS_API_KEY` в `.env` скилла (доктор покажет, есть ли). Без ключа — Whisper.
+   `ELEVENLABS_API_KEY` в `.env` скилла (доктор покажет, есть ли). Кончились кредиты или нет
+   ключа — скрипт сам переходит на Deepgram (`DEEPGRAM_API_KEY`), без него — на Whisper.
+   Очередь и запасные варианты — `references/asr-options.md`. Резал по Whisper — проверь
+   границы кусков посреди фразы по громкости звука: его время слов после пауз сбивается.
 4. **Decide** (твоя работа, правила — `references/decide-rules.md`):
    - по транскрипту: филлеры, заикания, дубли;
    - профиль `full`: `uv run scripts/extract_frames.py <видео> --intervals '<тихие участки JSON>' --out-dir <tmp>` → посмотри кадры глазами → cut / speedup / keep.

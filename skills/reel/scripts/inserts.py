@@ -115,6 +115,18 @@ def resolve(items, at, dur, library=None, library_dir=None, search_dirs=(), inse
     return brolls, cards, missing, problems
 
 
+FACE_FIRST_S = 1.5   # первые секунды ролика — лицо автора
+
+
+def check_face_first(brolls):
+    """Ролик открывается лицом: б-ролл на весь экран в первые FACE_FIRST_S секунд — ⚠
+    (автор, 2026-10-19: «лучше лицо в начале — 50/50 или голова со вставками, а не б-ролл на весь экран»)."""
+    first = [x for x in brolls if x["layout"] == "full" and x["a"] < FACE_FIRST_S]
+    return [{"level": "warn", "where": f"#{x['n'] + 1} {x['a']:.2f}",
+             "text": "ролик открывается б-роллом на весь экран — в начале нужно лицо: half или голова со вставками"}
+            for x in first[:1]]
+
+
 def check_cta(brolls, cards, cta_type):
     """Один ролик — один CTA. cta_type: "code" (кодовое слово в комменты, карточка cta) |
     "link" (3D-концовка со ссылкой, ассет end_card). → problems."""

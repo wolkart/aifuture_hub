@@ -31,3 +31,32 @@ def test_normalize_faster():
     out = transcribe.normalize_faster(segs)
     assert out["text"] == "привет мир"
     assert out["words"][1] == {"word": "мир", "start": 0.6, "end": 0.9}
+
+
+def _fake(name, key, result=None, fail=None):
+    import types
+    m = types.ModuleType(name)
+    m.api_key = lambda: key
+
+    def run(audio, language):
+        if fail:
+            raise SystemExit(fail)
+        return result
+    m.run = run
+    return m
+
+
+def test_cloud_chain_falls_back_to_deepgram(monkeypatch):
+    import sys
+    monkeypatch.setitem(sys.modules, "scribe", _fake("scribe", "k", fail="scribe: HTTP 401 — quota_exceeded"))
+    monkeypatch.setitem(sys.modules, "deepgram", _fake("deepgram", "k", result={"backend": "deepgram"}))
+    res, errors = transcribe.run_cloud("a.wav", "ru", transcribe.CLOUD_CHAIN["scribe"])
+    assert res == {"backend": "deepgram"} and "quota_exceeded" in errors[0]
+
+
+def test_cloud_chain_empty_when_all_fail(monkeypatch):
+    import sys
+    monkeypatch.setitem(sys.modules, "scribe", _fake("scribe", None))
+    monkeypatch.setitem(sys.modules, "deepgram", _fake("deepgram", "k", fail="deepgram: HTTP 402"))
+    res, errors = transcribe.run_cloud("a.wav", "ru", transcribe.CLOUD_CHAIN["scribe"])
+    assert res is None and errors == ["scribe: нет ключа", "deepgram: HTTP 402"]
