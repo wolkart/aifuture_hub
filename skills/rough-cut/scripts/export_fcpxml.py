@@ -58,29 +58,31 @@ def build(d):
         "spine")
 
     off_s = d.get("sync", {}).get("offset_s", 0.0)
-    tl = 0.0
+    # Всё в целых кадрах: позиция и длина клипа — от кадров его краёв в исходнике.
+    # Округлять секунды позиции и длины по отдельности нельзя: копится зазор или
+    # нахлёст в кадр на склейке (на 66-минутном уроке — 109 стыков из 438).
+    frame = lambda s: round(s * num / den)
+    at = lambda f: f"{f * den}/{num}s"
+    tl = 0
     for seg in cutlist.timeline(d):
-        dur = seg["end"] - seg["start"]
+        s, e = frame(seg["start"]), frame(seg["end"])
+        if e <= s:
+            continue
         clip = ET.SubElement(seq, "asset-clip", ref="r2", name="rough-cut",
-                             offset=rt(tl, num, den),
-                             start=rt(seg["start"], num, den),
-                             duration=rt(dur, num, den))
+                             offset=at(tl), start=at(s), duration=at(e - s))
         if seg["action"] == "speedup":
-            ET.SubElement(clip, "marker", start=rt(seg["start"], num, den),
-                          duration=rt(min(dur, 1.0), num, den),
+            ET.SubElement(clip, "marker", start=at(s),
+                          duration=at(min(e - s, frame(1.0))),
                           value=f"SPEEDUP ×{seg['rate']} (rough-cut): "
                                 f"{seg.get('reason', '')}")
         if audio:
             ET.SubElement(clip, "asset-clip", ref="r3", lane="-1",
-                          offset=rt(seg["start"], num, den),
-                          start=rt(seg["start"] + off_s, num, den),
-                          duration=rt(dur, num, den))
+                          offset=at(s), start=rt(seg["start"] + off_s, num, den),
+                          duration=at(e - s))
         if video2:
             ET.SubElement(clip, "asset-clip", ref="r4", lane="1",
-                          offset=rt(seg["start"], num, den),
-                          start=rt(seg["start"], num, den),
-                          duration=rt(dur, num, den))
-        tl += dur
+                          offset=at(s), start=at(s), duration=at(e - s))
+        tl += e - s
     return fx
 
 

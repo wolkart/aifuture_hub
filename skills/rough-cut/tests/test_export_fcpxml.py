@@ -61,3 +61,21 @@ def test_audio_connected_with_offset():
     laned = [c for c in root.findall(".//asset-clip/asset-clip")
              if c.get("lane") == "-1"]
     assert len(laned) == 4  # звук приклеен к каждому клипу таймлайна
+
+
+def test_spine_has_no_gaps_on_unaligned_cuts():
+    # резы не по границе кадра: позиция и длина клипа от одних и тех же кадров,
+    # иначе округление копит зазор/нахлёст в кадр на склейке (2026-10-28, урок 66 мин)
+    meta = {"profile": "light", "scenario": "screencast",
+            "inputs": {"video": "cam.mp4", "audio": None, "video2": None},
+            "sync": {"offset_s": 0.0, "confidence": 1.0},
+            "fps": {"num": 25, "den": 1}, "width": 1920, "height": 1080,
+            "duration_s": 20.0}
+    # куски по 0,416 с = 10,4 кадра: по отдельности округляются до 10, а их сумма — до 21
+    d = cutlist.from_cuts(meta, [
+        {"start": a, "end": a + 0.584, "action": "cut", "source": "silence", "reason": "т", "confidence": 1}
+        for a in (0.416, 1.416, 2.416)])
+    frames = lambda v: int(v.split("/")[0])
+    clips = export_fcpxml.build(d).find(".//spine").findall("asset-clip")
+    for a, b in zip(clips, clips[1:]):
+        assert frames(a.get("offset")) + frames(a.get("duration")) == frames(b.get("offset"))
