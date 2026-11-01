@@ -40,6 +40,12 @@ def plan(duration, r):
     if rest < b_min:                               # не хватает до тишины — начать раньше
         start = max(min_start, start - (b_min - rest))
         rest = duration - (lb - start) - k * l_len
+    if rest < b_min and k > 0:                     # раньше начать некуда — на цикл меньше, хвост в тихой зоне
+        k -= 1
+        start = max(min_start, lb - (duration - (b_max - 0.3) - k * l_len))
+        rest = duration - (lb - start) - k * l_len
+    if not b_min <= rest <= b_max:
+        raise SystemExit(f"music_bed: {duration:.1f} с не укладываются в рецепт трека (хвост {rest:.2f} с)")
     return ([(round(start, 3), lb)] + [(la, lb)] * k + [(lb, round(lb + rest, 3))])
 
 

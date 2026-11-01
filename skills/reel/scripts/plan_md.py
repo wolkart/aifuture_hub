@@ -111,6 +111,7 @@ def main():
         raise SystemExit(f"plan_md: якорь не найден в расшифровке — {e}")
     cta = settings_mod.cta_type(plan.get("cta"), s.get("cta_type", "code"))
     problems += ins.check_cta(brolls, cards, cta)
+    problems += ins.check_face_first(brolls)
     spans = ins.spans_from_cutlist(json.loads(b.cutlist.read_text())) if b.cutlist.exists() else [(0.0, dur)]
     rows = []
     if plan.get("zoom", True):
@@ -125,7 +126,7 @@ def main():
              f"музыка: {'да' if plan.get('music', True) else 'нет'}",
              f"текст за головой: {'да' if plan.get('behind_text') else 'нет'}",
              f"CTA: {'кодовое слово' if cta == 'code' else 'ссылка (3D-концовка)'}"]
-    out = [f"# План: {b.stem} — {b.name} ({plan.get('mode', 'full')})", "",
+    out = [f"# План: {plan.get('title') or b.title} — {plan.get('label') or b.name} ({plan.get('mode', 'full')})", "",
            f"Длина {dur:.1f} с · " + " · ".join(flags),
            f"Под вставками {ins.coverage(brolls, dur):.1f} с из {dur:.1f}; б-роллов {len(brolls)}, "
            f"карточек {len(cards)}", ""]

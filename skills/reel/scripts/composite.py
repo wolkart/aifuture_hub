@@ -7,12 +7,12 @@
           поэтому текст за головой «едет» вместе с видео.
   final — основа (main.mp4 / base.mp4 / черновик) → front.webm (субтитры, карточки) +
           звук: голос черновика → −14 LUFS, музыка −12 LU к голосу, пик ≤ −1,5 dBTP →
-          export/<имя> — <метка>.mp4.
+          export/<название> — <площадка>.mp4.
 Альфа-слои — VP9 webm; декодер для них задаётся явно (-c:v libvpx-vp9), иначе ffmpeg
 берёт встроенный и теряет прозрачность.
 
 usage: composite.py base  <папка варианта>
-       composite.py final <папка варианта> [--no-music] [--label "по слову, лайм"] [--settings …]
+       composite.py final <папка варианта> [--no-music] [--label "Instagram"] [--settings …]
 """
 import argparse
 import json
@@ -181,9 +181,8 @@ def cmd_final(b, args):
     v_i, _ = measure(b.roughcut)
     m_i = measure(music)[0] if music else None
     gv, gm = gains(v_i, m_i, s["audio"]["voice_lufs"], s["music"]["rel_lu"])
-    label = args.label or plan.get("label") or b.name
     b.final.mkdir(parents=True, exist_ok=True)
-    out = b.final / f"{b.stem} — {label}.mp4"
+    out = b.final_path(plan, args.label)
     levels = []
     lift = float(plan.get("music_lift_db", s["music"].get("pause_lift_db", 6)))
     if music and not plan.get("music_levels") and lift > 0 and b.transcript.exists():

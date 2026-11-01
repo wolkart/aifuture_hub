@@ -19,7 +19,7 @@ SCRIPTS = Path(__file__).parent.parent / "scripts"
 RECIPE = {"start": 9.67, "loop": [25.796, 38.63], "quiet_end": [40.0, 47.5], "min_start": 5.0}
 
 
-@pytest.mark.parametrize("dur", [12.0, 30.0, 33.0, 36.6, 61.3, 125.0])
+@pytest.mark.parametrize("dur", [12.0, 30.0, 33.0, 36.6, 40.0, 42.0, 61.3, 125.0])
 def test_music_plan_sums_and_ends_in_quiet_zone(dur):
     segs = music_bed.plan(dur, RECIPE)
     assert sum(b - a for a, b in segs) == pytest.approx(dur, abs=0.01)

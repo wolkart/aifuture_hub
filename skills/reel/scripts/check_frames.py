@@ -68,8 +68,9 @@ def main():
     b = Build(args.variant)
     plan = b.load_plan() if b.plan.exists() else {}
     s = settings_mod.load(args.settings) or settings_mod.default()
-    video = Path(args.video) if args.video else max(b.final.glob(f"{b.stem} — *.mp4"),
-                                                    key=lambda p: p.stat().st_mtime)
+    video = Path(args.video) if args.video else b.final_path(plan)
+    if not video.exists():
+        raise SystemExit(f"нет ролика {video} — сначала composite.py final (или --video <файл>)")
     dur = hf.duration(video)
     words = wmod.load(b.transcript)
     brolls, cards, _, _ = ins.resolve(plan.get("items", []), lambda a: wmod.at(words, a), dur)
