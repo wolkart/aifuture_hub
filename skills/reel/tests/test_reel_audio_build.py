@@ -28,6 +28,15 @@ def test_music_plan_sums_and_ends_in_quiet_zone(dur):
     assert segs[0][0] >= RECIPE["min_start"]
 
 
+def test_music_plan_covers_every_length():
+    """Рилс 2026-11-01 (42,6 с) падал: при нехватке хвоста начало сдвигалось раньше, и хвост становился ещё короче."""
+    for i in range(300, 1300):
+        dur = i / 10
+        segs = music_bed.plan(dur, RECIPE)
+        assert sum(b - a for a, b in segs) == pytest.approx(dur, abs=0.01)
+        assert RECIPE["quiet_end"][0] <= segs[-1][1] <= RECIPE["quiet_end"][1] + 1e-6
+
+
 def test_music_loops_only_for_long():
     assert len(music_bed.plan(30.0, RECIPE)) == 1
     assert len(music_bed.plan(125.0, RECIPE)) > 3

@@ -3,7 +3,8 @@
 
 Видео основы — base.mp4 варианта (если собран «текст за головой») или черновик
 roughcut.mp4. Длительность — из файла (ffprobe), куски — из cut-list rough-cut.
-Вставки half: спикер уезжает вниз на 480 px, верх занимает б-ролл, между ними шов.
+Вставки half: спикер уезжает вниз так, чтобы лицо встало в центр нижней половины (по faces.csv;
+без него — 480 px), верх занимает б-ролл, между ними шов.
 У пункта плана "enter": "down" — половина не появляется кадром, а съезжает сверху вниз
 (жест «стянуть шторку»), спикер уезжает вниз вместе с ней за ENTER_S.
 "film_roll": [{"from": <якорь>, "dur": 0.75, "cycles": 4}] — кадр-лента: кадр уезжает вверх,
@@ -25,9 +26,22 @@ import words as wmod  # noqa: E402
 import zoom  # noqa: E402
 from layout import Build  # noqa: E402
 
-HALF_Y = 480
+HALF_Y = 480        # сдвиг без faces.csv (лицо по центру кадра → в центре нижней половины)
+HALF_FACE_Y = 1440  # центр нижней половины: сюда встаёт центр лица
+HALF_RANGE = (300, 800)
 ENTER_S = 0.4
 FRAME_GAP = 40      # чёрная полоса между кадрами «плёнки»
+
+
+def half_shift(faces, a, b):
+    """Насколько опустить спикера на окне half, чтобы лицо встало в центр нижней половины.
+    Наезд масштабирует #cam вокруг лица, поэтому центр лица от наезда не сдвигается.
+    Постоянные 480 px годились, пока лицо было по центру кадра камеры; в записи OBS
+    (2026-11-01) лицо выше — центр на 0,39 высоты, и шов срезал голову."""
+    if not faces:
+        return HALF_Y
+    _, cy = zoom.face_center(faces, a, b)
+    return int(round(min(HALF_RANGE[1], max(HALF_RANGE[0], HALF_FACE_Y - cy * 1920))))
 
 
 def roll_durations(total, cycles, ratio=0.72):
@@ -59,7 +73,7 @@ def landscape_frame(mode, w, h, faces):
     return css, "blur", mapped
 
 
-def render_html(dur, zoom_rows, brolls, halves, seam_color, media_names, rolls=(), frame=("", "")):
+def render_html(dur, zoom_rows, brolls, halves, seam_color, media_names, rolls=(), frame=("", ""), shifts=None):
     js, body = [], []
     for r in zoom_rows:
         js += r["js"]
@@ -74,12 +88,13 @@ def render_html(dur, zoom_rows, brolls, halves, seam_color, media_names, rolls=(
                     f'data-track-index="{1 + n % 2}" muted playsinline style="position:absolute; left:0; top:0; '
                     f'width:1080px; height:{h}px; object-fit:cover; object-position:{r["pos"]}; z-index:2"></video>')
     for k, (a, b) in enumerate(halves):
+        dy = shifts[k] if shifts else HALF_Y
         slide = any(r.get("enter") == "down" and abs(r["a"] - a) < 0.02 for r in brolls)
         if slide:   # спикер уезжает вниз вместе с въезжающей сверху половиной
-            js.append(f'tl.fromTo("#cam", {{y: 0}}, {{y: {HALF_Y}, duration: {ENTER_S}, ease: "power3.out"}}, '
+            js.append(f'tl.fromTo("#cam", {{y: 0}}, {{y: {dy}, duration: {ENTER_S}, ease: "power3.out"}}, '
                       f'{a:.3f}); tl.set("#cam", {{y: 0}}, {b:.3f});')
         else:
-            js.append(f'tl.set("#cam", {{y: {HALF_Y}}}, {a:.3f}); tl.set("#cam", {{y: 0}}, {b:.3f});')
+            js.append(f'tl.set("#cam", {{y: {dy}}}, {a:.3f}); tl.set("#cam", {{y: 0}}, {b:.3f});')
         body.append(f'<div id="seam{k}" class="clip" data-start="{a:.3f}" data-duration="{b - a:.3f}" '
                     f'data-track-index="3" style="position:absolute; left:0; top:956px; width:1080px; height:8px; '
                     f'background:{seam_color}; inset:auto; z-index:3"></div>')
@@ -161,6 +176,10 @@ def main():
                          s["edit"]["zoom_levels"], s["edit"]["punch_add"], s["edit"]["punch_dur"])
     halves = ins.half_windows(brolls)
     b.write_json(b.half_windows, halves)
+    shifts = [half_shift(faces, a, bb) for a, bb in halves]
+    if halves:
+        print("половина: спикер ниже на " + ", ".join(f"{a:.2f}–{bb:.2f} {d}px" for (a, bb), d in zip(halves, shifts))
+              + " (лицо в центр нижней половины)")
 
     media, files = [], {"base.mp4": base_src}
     for r in brolls:
@@ -173,7 +192,7 @@ def main():
              for r in plan.get("film_roll", [])]
     hf.setup_project(b.main, s["theme"], [(src, name) for name, src in files.items()])
     (b.main / "index.html").write_text(
-        render_html(dur, rows, brolls, halves, s["theme"]["bg_dark"][-1], media, rolls, frame),
+        render_html(dur, rows, brolls, halves, s["theme"]["bg_dark"][-1], media, rolls, frame, shifts),
         encoding="utf-8")
     for ra, rd, cyc in rolls:
         print(f"кадр-лента: {ra:.2f}–{ra + rd:.2f} с, {cyc} прохода, всё быстрее")

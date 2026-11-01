@@ -37,8 +37,8 @@ def plan(duration, r):
         return [(round(s, 3), round(s + duration, 3))]
     k = max(0, math.ceil((duration - a_len - b_max) / l_len))
     rest = duration - a_len - k * l_len
-    if rest < b_min:                               # не хватает до тишины — начать раньше
-        start = max(min_start, start - (b_min - rest))
+    if rest < b_min:                               # не хватает до тишины — начать позже: хвост удлиняется
+        start = start + (b_min - rest) + 0.01
         rest = duration - (lb - start) - k * l_len
     if rest < b_min and k > 0:                     # раньше начать некуда — на цикл меньше, хвост в тихой зоне
         k -= 1
