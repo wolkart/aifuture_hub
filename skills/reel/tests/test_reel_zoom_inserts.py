@@ -204,3 +204,15 @@ def test_face_first_warns_on_full_broll_at_start():
     assert ins.check_face_first([full0, later])[0]["level"] == "warn"
     assert ins.check_face_first([half0, later]) == []
     assert ins.check_face_first([later]) == []
+
+
+def test_half_shift_puts_face_in_lower_half_center():
+    import build_main
+    # лицо по центру кадра (камера) — прежние 480; лицо выше (OBS, cy 0.39) — спикер ниже, голова не под швом
+    assert build_main.half_shift([], 0.0, 2.0) == build_main.HALF_Y
+    assert build_main.half_shift([(0.5, 0.5, 0.5), (1.0, 0.5, 0.5)], 0.0, 2.0) == 480
+    assert build_main.half_shift([(0.5, 0.47, 0.39), (1.0, 0.48, 0.39)], 0.0, 2.0) == 691
+    assert build_main.half_shift([(0.5, 0.5, 0.05)], 0.0, 2.0) == 800      # не уезжает за кадр
+    html = build_main.render_html(5.0, [], [{"n": 0, "a": 1.0, "b": 2.0, "layout": "half", "rate": 1, "in": 0.0,
+                                             "pos": "50% 50%"}], [[1.0, 2.0]], "#000", ["a.mp4"], shifts=[691])
+    assert '{y: 691}' in html
