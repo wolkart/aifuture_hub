@@ -275,6 +275,29 @@ def test_end_card_screenshot_geometry(tmp_path, theme):
         t.build({"profile": str(tmp_path / "нет.png"), "link_box": [0, 0, 1, 1]}, theme)
 
 
+def test_end_card_lift_shot(tmp_path, theme):
+    """Шортс → большой ролик: со страницы канала выходит сама карточка видео, а не плашка ссылки."""
+    t = tpl("end_card")
+    shot = png(tmp_path / "канал.png", 593, 689)
+    thumb = png(tmp_path / "обложка.png", 1280, 720)
+    base = {"profile": str(shot), "link_box": [79, 351, 419, 290], "tone": "dark", "lift": "shot",
+            "link": "Название видео, которое длиннее одной строки на карточке"}
+    r = t.build(base, theme)
+    assert 'class="plimg"' in r["body"] and 'src="profile.png"' in r["body"] and 'id="play"' in r["body"]
+    assert "Название видео" in r["body"] and "▶" in " ".join(e["what"] for e in r["events"])
+    r2 = t.build({**base, "lift_image": str(thumb)}, theme)
+    assert (str(thumb), "lift.png") in r2["files"] and 'src="lift.png"' in r2["body"]
+    # высокая карточка поднимается над нижней зоной кадра (интерфейс шортса), а не опускается
+    m = re.search(r'"#lift", \{ x: 0, y: 0, z: 0 \}, \{ x: [-\d.]+, y: ([-\d.]+)', r["js"])
+    assert m and float(m.group(1)) < 0
+    with pytest.raises(ValueError):
+        t.build({**base, "highlight": "click"}, theme)
+    with pytest.raises(ValueError):            # без скриншота вырезать не из чего
+        t.build({"lift": "shot"}, theme)
+    with pytest.raises(ValueError):
+        t.build({**base, "lift": "fly"}, theme)
+
+
 def test_end_card_jpeg_size(tmp_path):
     import struct
     sof = b"\xff\xc0" + struct.pack(">HBHH", 17, 8, 1280, 576) + b"\x00" * 10
