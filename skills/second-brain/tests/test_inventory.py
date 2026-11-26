@@ -83,3 +83,28 @@ def test_cli_build(messy_vault, rules, tmp_path):
     out = messy_vault / "_переезд"
     assert (out / "plan.json").is_file() and (out / "Опись.md").is_file()
     assert "без правила: 1" in r.stdout and "вопросов: 1" in r.stdout
+
+
+def test_tree_nesting_with_similar_names(tmp_path):
+    from conftest import write
+    write(tmp_path, "Разведка/автор/a.md"); write(tmp_path, "Разведка YouTube/канал/b.md")
+    lines = tree(tmp_path).splitlines()
+    assert lines.index("Разведка/ — заметок: 1") + 1 == lines.index("  автор/ — заметок: 1")
+
+
+def test_dropped_but_linked(messy_vault, rules):
+    from conftest import write
+    write(messy_vault, "Пустая.md", "")
+    write(messy_vault, "Ресурсы/Оглавление.md", "[[Пустая]]\n")
+    plan = build(messy_vault, [{"from": "Пустая.md", "to": None, "why": "пустая", "ask": ""}] + rules)
+    assert plan["dropped_linked"] == ["Пустая.md"]
+    assert "## Не берём, но на них ссылаются" in render(plan, "2026-11-26")
+
+
+def test_bad_names(messy_vault, rules):
+    from conftest import write
+    write(messy_vault, "Ресурсы/Qwen .md", "# q\n")
+    write(messy_vault, "Ресурсы/�� Штаб.md", "# ш\n")
+    plan = build(messy_vault, rules)
+    assert plan["bad_names"] == ["Ресурсы/Qwen .md", "Ресурсы/�� Штаб.md"]
+    assert "## Подозрительные имена" in render(plan, "2026-11-26")

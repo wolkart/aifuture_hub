@@ -12,7 +12,7 @@ def broken_links(root: Path) -> set:
     root = Path(root)
     files = list(iter_files(root))
     names = {Path(p).name for p in files}
-    stems = {Path(p).stem for p in files if p.endswith(".md")}
+    stems = {Path(p).stem.strip() for p in files if p.endswith(".md")}   # «Заметка .md» — ссылка [[Заметка ]]
     bad = set()
     for rel in files:
         if not rel.endswith(".md") or "/cards/" in f"/{rel}":

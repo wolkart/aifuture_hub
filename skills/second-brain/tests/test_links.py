@@ -34,3 +34,9 @@ def test_ignores_code(vault):
 def test_cards_dir_skipped(vault):
     write(vault, "raw/выгрузка/cards/1.md", "[[нет]]\n")
     assert broken_links(vault) == set()
+
+
+def test_trailing_space_name(vault):
+    write(vault, "wiki/Qwen .md", "# q\n")
+    write(vault, "wiki/Обзор.md", "[[Qwen ]] и [[Qwen]]\n")
+    assert broken_links(vault) == set()

@@ -83,3 +83,38 @@ def utf8_stdio() -> None:
 def vault_arg(s: str) -> Path:
     """Путь из командной строки: «~» раскрываем сами — в кавычках оболочка его не раскроет."""
     return Path(os.path.expanduser(s))
+
+
+def _continues(text: str, i: int) -> bool:
+    return i < len(text) and (text[i].isalnum() or text[i] in "_-")
+
+
+class PathRewriter:
+    """Замена путей по таблице «старый → новый»: всегда самое длинное совпадение, на границах слова.
+    Быстро и на тысячах пар: ищем только места, где начинается «якорь» (первая папка старого пути
+    или старый корень), и там подбираем самый длинный ключ — без огромного выражения на все пары."""
+
+    def __init__(self, pairs: dict, anchors=None):
+        self.pairs = {k: v for k, v in pairs.items() if k}
+        anchors = anchors or {k.split("/")[0] for k in self.pairs}
+        alt = "|".join(re.escape(a) for a in sorted(anchors, key=len, reverse=True))
+        self.rx = re.compile(r"(?<![\w-])(?:" + alt + ")") if alt else None
+        self.lengths = sorted({len(k) for k in self.pairs}, reverse=True)
+
+    def sub(self, text: str):
+        """Новый текст и число замен."""
+        if not self.rx:
+            return text, 0
+        out, pos, n = [], 0, 0
+        for m in self.rx.finditer(text):
+            s = m.start()
+            if s < pos:
+                continue
+            for length in self.lengths:
+                key = text[s:s + length]
+                if len(key) == length and key in self.pairs and not _continues(text, s + length):
+                    out += [text[pos:s], self.pairs[key]]
+                    pos, n = s + length, n + 1
+                    break
+        out.append(text[pos:])
+        return "".join(out), n

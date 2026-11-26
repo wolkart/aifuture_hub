@@ -145,6 +145,11 @@ def build_index(root: Path, big: int = 30, today: str = None) -> str:
     if exists("templates"):
         L += ["## Шаблоны — templates/", ""] + c.tree("templates") + [""]
 
+    known = {"projects", "wiki", "content", "raw", "journal", "archive", "templates"}
+    others = [d for d in c.subdirs(".") if d not in known and not d.startswith(".") and c.under(d)]
+    if others:
+        L += ["## Другие папки", ""] + [c.count_line(d) for d in others] + [""]
+
     return re.sub(r"\n{3,}", "\n\n", "\n".join(L)).rstrip() + "\n"
 
 

@@ -13,7 +13,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))  # python3 -I не добавляет папку скрипта сам
 
-from vaultlib import iter_files, nfc, utf8_stdio, vault_arg, write_text  # noqa: E402
+from vaultlib import LINK_RE, iter_files, nfc, read_text, resolve, strip_code, utf8_stdio, vault_arg, write_text  # noqa: E402
 
 SKIP = {".git", ".obsidian", ".trash", "_переезд"}
 JUNK = {".DS_Store", "Thumbs.db", "desktop.ini"}
@@ -35,7 +35,7 @@ def tree(root: Path, depth: int = 3) -> str:
         if not parts:
             (md if p.endswith(".md") else other)["."] += 1
     lines = []
-    for key in sorted(set(md) | set(other), key=lambda k: (k != ".", k)):
+    for key in sorted(set(md) | set(other), key=lambda k: (k != ".", k.split("/"))):
         indent = "  " * (0 if key == "." else key.count("/"))
         name = "(корень)" if key == "." else key.split("/")[-1] + "/"
         tail = f", других файлов: {other[key]}" if other[key] else ""
@@ -64,6 +64,13 @@ def build(root: Path, rules: list) -> dict:
                 break
         else:
             unmatched.append(rel)
+    dropped = {Path(p).stem.strip(): p for p, v in dest.items() if v is None and p.endswith(".md")}
+    targets = set()
+    if dropped:
+        for p, v in dest.items():
+            if v and p.endswith(".md"):
+                for m in LINK_RE.finditer(strip_code(read_text(resolve(root, p)))):
+                    targets.add(nfc(m.group(1)).strip().split("/")[-1])
     taken = Counter(v for v in dest.values() if v)
     names = defaultdict(set)
     for v in dest.values():
@@ -76,6 +83,9 @@ def build(root: Path, rules: list) -> dict:
         "unmatched": unmatched,
         "collisions": sorted(k for k, n in taken.items() if n > 1),
         "same_name": {k: sorted(v) for k, v in sorted(names.items()) if len(v) > 1},
+        "dropped_linked": sorted(p for stem, p in dropped.items() if stem in targets),
+        "bad_names": [p for p in sorted(dest) + unmatched
+                      if Path(p).stem != Path(p).stem.strip() or "\ufffd" in p],
     }
 
 
@@ -112,6 +122,12 @@ def render(plan: dict, today: str) -> str:
     for title, items in (("Без правила", plan["unmatched"]), ("Коллизии — два файла в одно место", plan["collisions"])):
         if items:
             L += ["", f"## {title}", ""] + [f"- `{p}`" for p in items]
+    if plan.get("dropped_linked"):
+        L += ["", "## Не берём, но на них ссылаются — оставь заметку или поправь ссылки", ""]
+        L += [f"- `{p}`" for p in plan["dropped_linked"]]
+    if plan.get("bad_names"):
+        L += ["", "## Подозрительные имена — пробел перед расширением или символы, испорченные облаком", ""]
+        L += [f"- `{p}`" for p in plan["bad_names"]]
     if plan["same_name"]:
         L += ["", "## Одноимённые заметки — ссылки [[имя]] будут вести только к одной", ""]
         L += [f"- `{k}`: " + ", ".join(f"`{p}`" for p in v) for k, v in plan["same_name"].items()]

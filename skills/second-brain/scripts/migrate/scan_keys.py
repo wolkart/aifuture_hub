@@ -14,8 +14,15 @@ from vaultlib import iter_files, read_text, resolve, utf8_stdio, vault_arg  # no
 Hit = namedtuple("Hit", "path line kind masked placeholder")
 
 PATTERNS = [
-    ("anthropic", re.compile(r"sk-ant-[A-Za-z0-9_\-]{3,}")),
-    ("openai", re.compile(r"sk-(?!ant-)[A-Za-z0-9_\-]{3,}")),
+    ("anthropic", re.compile(r"(?<![\w-])sk-ant-[A-Za-z0-9_\-]{3,}")),
+    ("openai", re.compile(r"(?<![\w-])sk-(?!ant-)[A-Za-z0-9_\-]{3,}")),
+    ("elevenlabs/stripe", re.compile(r"(?<![\w-])sk_(?:live_|test_)?[A-Za-z0-9]{20,}")),
+    ("perplexity", re.compile(r"pplx-[A-Za-z0-9]{20,}")),
+    ("huggingface", re.compile(r"(?<![\w-])hf_[A-Za-z0-9]{20,}")),
+    ("groq", re.compile(r"(?<![\w-])gsk_[A-Za-z0-9]{20,}")),
+    ("apify", re.compile(r"apify_api_[A-Za-z0-9]{20,}")),
+    ("jwt", re.compile(r"eyJ[\w-]{10,}\.eyJ[\w-]{10,}\.[\w-]{10,}")),
+    ("bearer", re.compile(r"(?i)bearer\s+([A-Za-z0-9._\-]{20,})")),
     ("github", re.compile(r"(?:ghp|gho|ghu|ghs)_[A-Za-z0-9]{10,}|github_pat_[A-Za-z0-9_]{10,}")),
     ("telegram-бот", re.compile(r"\b\d{8,10}:[A-Za-z0-9_\-]{30,}")),
     ("slack", re.compile(r"xox[abprs]-[A-Za-z0-9\-]{10,}")),
@@ -43,6 +50,8 @@ def scan(root: Path) -> list:
     root = Path(root)
     hits = []
     for rel in iter_files(root, skip=SKIP):
+        if rel.startswith(".obsidian/plugins/") and rel.endswith((".js", ".css", ".map")):
+            continue   # код плагинов: сотни ложных совпадений, ключи плагины держат в data.json
         p = resolve(root, rel)
         if p.stat().st_size > MAX_BYTES or b"\0" in p.read_bytes()[:4096]:
             continue

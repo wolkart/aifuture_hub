@@ -106,3 +106,11 @@ def test_cli_writes_index(vault):
 
 def test_no_double_blank_lines(vault):
     assert "\n\n\n" not in build_index(vault, today=TODAY)
+
+
+def test_other_top_folders(vault):
+    write(vault, "files/Схема.excalidraw.md", "рисунок\n")
+    write(vault, "Bases/Контент.md", "база\n")
+    text = build_index(vault, today=TODAY)
+    assert "## Другие папки" in text
+    assert "- `files/` — заметок: 1" in text and "- `Bases/` — заметок: 1" in text
