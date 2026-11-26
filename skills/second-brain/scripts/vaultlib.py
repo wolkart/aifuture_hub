@@ -63,7 +63,9 @@ def resolve(root: Path, rel: str) -> Path:
     cur = Path(root)
     for part in Path(rel).parts:
         nxt = cur / part
-        if not os.path.lexists(nxt) and cur.is_dir():
+        # перебирать папку есть смысл, только если в имени есть «й», «ё» и подобные — у остальных имён
+        # NFC и NFD совпадают, другого написания на диске быть не может
+        if unicodedata.normalize("NFD", part) != part and not os.path.lexists(nxt) and cur.is_dir():
             match = next((c for c in os.listdir(cur) if nfc(c) == nfc(part)), None)
             if match is not None:
                 nxt = cur / match
