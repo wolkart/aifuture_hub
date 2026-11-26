@@ -11,7 +11,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))  # python3 -I не добавляет папку скрипта сам
 
-from vaultlib import nfc, read_text, write_text  # noqa: E402
+from vaultlib import nfc, read_text, utf8_stdio, write_text  # noqa: E402
 
 
 def _pairs(old: str, new: str, plan) -> dict:
@@ -59,6 +59,7 @@ def main(argv=None):
     ap.add_argument("--plan")
     ap.add_argument("--dry", action="store_true")
     ap.add_argument("files", nargs="+")
+    utf8_stdio()
     a = ap.parse_args(argv)
     plan = json.loads(Path(a.plan).read_text(encoding="utf-8")) if a.plan else None
     for f, n, left in run(a.files, a.old, a.new, plan, a.dry):

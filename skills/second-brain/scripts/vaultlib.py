@@ -1,6 +1,7 @@
 """Общее для скриптов второго мозга: имена в NFC, обход папки, чтение, вики-ссылки."""
 import os
 import re
+import sys
 import unicodedata
 from collections import Counter
 from pathlib import Path
@@ -51,3 +52,29 @@ def write_text(path: Path, text: str) -> None:
     """UTF-8 и \\n в конце строк на любой ОС (на Windows по умолчанию были бы cp1251 и \\r\\n)."""
     with open(path, "w", encoding="utf-8", newline="\n") as f:
         f.write(text)
+
+
+def resolve(root: Path, rel: str) -> Path:
+    """Файл на диске по пути в NFC. Мак находит файл при любой форме «й/ё», а Windows сравнивает
+    имена побайтно: файл, пришедший с Мака в NFD, по NFC-пути не откроется — ищем имя в папке."""
+    p = Path(root) / rel
+    if os.path.lexists(p):
+        return p
+    cur = Path(root)
+    for part in Path(rel).parts:
+        nxt = cur / part
+        if not os.path.lexists(nxt) and cur.is_dir():
+            match = next((c for c in os.listdir(cur) if nfc(c) == nfc(part)), None)
+            if match is not None:
+                nxt = cur / match
+        cur = nxt
+    return cur
+
+
+def utf8_stdio() -> None:
+    """Вывод скриптов — UTF-8 на любой ОС: на Windows кириллица и «→» в cp1252 роняют print."""
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(encoding="utf-8", errors="replace")
+        except (AttributeError, ValueError):
+            pass

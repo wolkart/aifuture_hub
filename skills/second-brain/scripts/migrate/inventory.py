@@ -13,7 +13,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))  # python3 -I не добавляет папку скрипта сам
 
-from vaultlib import iter_files, nfc, write_text  # noqa: E402
+from vaultlib import iter_files, nfc, utf8_stdio, write_text  # noqa: E402
 
 SKIP = {".git", ".obsidian", ".trash", "_переезд"}
 JUNK = {".DS_Store", "Thumbs.db", "desktop.ini"}
@@ -132,6 +132,7 @@ def main(argv=None):
     sub = ap.add_subparsers(dest="cmd", required=True)
     t = sub.add_parser("tree"); t.add_argument("vault"); t.add_argument("--depth", type=int, default=3)
     b = sub.add_parser("build"); b.add_argument("vault"); b.add_argument("rules"); b.add_argument("--out")
+    utf8_stdio()
     a = ap.parse_args(argv)
     if a.cmd == "tree":
         print(tree(Path(a.vault), a.depth))

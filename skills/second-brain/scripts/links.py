@@ -5,7 +5,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))  # python3 -I не добавляет папку скрипта сам
 
-from vaultlib import LINK_RE, iter_files, nfc, read_text, strip_code
+from vaultlib import LINK_RE, iter_files, nfc, read_text, resolve, strip_code, utf8_stdio
 
 
 def broken_links(root: Path) -> set:
@@ -17,7 +17,7 @@ def broken_links(root: Path) -> set:
     for rel in files:
         if not rel.endswith(".md") or "/cards/" in f"/{rel}":
             continue
-        for m in LINK_RE.finditer(strip_code(read_text(root / rel))):
+        for m in LINK_RE.finditer(strip_code(read_text(resolve(root, rel)))):
             target = nfc(m.group(1).strip().rstrip("\\").strip())
             name = target.split("/")[-1]
             if not name or name in stems or name in names or f"{name}.md" in names:
@@ -27,6 +27,7 @@ def broken_links(root: Path) -> set:
 
 
 if __name__ == "__main__":
+    utf8_stdio()
     found = sorted(broken_links(Path(sys.argv[1])))
     for note, target in found:
         print(f"{note} → {target}")

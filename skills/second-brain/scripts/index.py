@@ -11,7 +11,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))  # python3 -I не добавляет папку скрипта сам
 
-from vaultlib import iter_files, name_counts, nfc, read_text, wikilink, write_text
+from vaultlib import iter_files, name_counts, nfc, read_text, resolve, utf8_stdio, wikilink, write_text
 
 SERVICE = {"index.md", "README.md", "_CLAUDE.md", "AGENTS.md", "About Me.md"}
 _FM = re.compile(r"^---\n(.*?)\n---\n?", re.S)
@@ -54,14 +54,14 @@ class _Catalog:
         return [p for p in self.notes if p.startswith(folder + "/")]
 
     def item(self, rel: str, prefix: str = "") -> str:
-        desc = describe(self.root / rel)
+        desc = describe(resolve(self.root, rel))
         return f"- {prefix}{wikilink(rel, self.counts)}" + (f" — {desc}" if desc else "")
 
     def count_line(self, folder: str, tail: str = "") -> str:
         return f"- `{folder}/` — заметок: {len(self.under(folder))}{tail}"
 
     def subdirs(self, folder: str) -> list:
-        d = self.root / folder
+        d = resolve(self.root, folder)
         return sorted(nfc(x.name) for x in d.iterdir() if x.is_dir()) if d.is_dir() else []
 
     def direct(self, folder: str) -> list:
@@ -110,7 +110,7 @@ def build_index(root: Path, big: int = 30, today: str = None) -> str:
             card = f"{folder}/{proj}.md"
             L.append(f"### {proj}")
             if card in c.notes:
-                desc = describe(root / card)
+                desc = describe(resolve(root, card))
                 L.append(f"- {wikilink(card, c.counts)} — карточка проекта" + (f": {desc}" if desc else ""))
             L += c.tree(folder, skip={card})
             L.append("")
@@ -152,6 +152,7 @@ def main(argv=None):
     ap = argparse.ArgumentParser(description="Пересобрать index.md второго мозга")
     ap.add_argument("vault")
     ap.add_argument("--big", type=int, default=30, help="больше стольких заметок — папка одной строкой")
+    utf8_stdio()
     a = ap.parse_args(argv)
     text = build_index(Path(a.vault), a.big)
     write_text(Path(a.vault) / "index.md", text)

@@ -13,7 +13,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))  # python3 -I не добавляет папку скрипта сам
 
 from links import broken_links  # noqa: E402
-from vaultlib import SKIP_DIRS, iter_files, nfc, read_text, write_text  # noqa: E402
+from vaultlib import SKIP_DIRS, iter_files, nfc, read_text, resolve, utf8_stdio, write_text  # noqa: E402
 
 TEXT_EXT = (".md", ".base", ".canvas")
 
@@ -68,7 +68,8 @@ def _check_targets(root: Path, dest: dict) -> None:
         if not dst or src == dst:
             continue
         d = root / dst
-        if d.exists() and dst not in dest and not (os.path.exists(root / src) and os.path.samefile(root / src, d)):
+        s = resolve(root, src)
+        if d.exists() and dst not in dest and not (os.path.exists(s) and os.path.samefile(s, d)):
             busy.append(dst)
     if busy:
         raise SystemExit("занято — переносить некуда, ничего не тронуто:\n  " + "\n  ".join(busy))
@@ -102,7 +103,7 @@ def run(root: Path, plan: dict, dry: bool) -> dict:
 
     moved = skipped = 0
     for src, dst in dest.items():
-        s = root / src
+        s = resolve(root, src)
         if not os.path.lexists(s):
             continue
         if dst is None:
@@ -133,14 +134,15 @@ def run(root: Path, plan: dict, dry: bool) -> dict:
     for rel in ([] if dry else iter_files(root)):
         if not rel.endswith(TEXT_EXT):
             continue
-        t = read_text(root / rel)
+        f = resolve(root, rel)
+        t = read_text(f)
         new = _sub_all(t, pairs)
         if rel.endswith((".base", ".canvas")):
             new = _sub_all(new, quoted)
         if link_rx:
             new = link_rx.sub(lambda m: "[[" + stems[m.group(1)], new)
         if new != t:
-            write_text(root / rel, new)
+            write_text(f, new)
             rewritten += 1
 
     obsidian = _rewrite_obsidian(root, plan, dry)
@@ -153,6 +155,7 @@ def run(root: Path, plan: dict, dry: bool) -> dict:
 
 
 if __name__ == "__main__":
+    utf8_stdio()
     args = [a for a in sys.argv[1:] if a != "--dry"]
     r = run(Path(args[0]), json.loads(Path(args[1]).read_text(encoding="utf-8")), dry="--dry" in sys.argv)
     print(("ПРОБА, ничего не изменено. " if "--dry" in sys.argv else "") +
