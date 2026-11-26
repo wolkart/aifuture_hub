@@ -17,6 +17,8 @@ BeforeAll {
     function Get-Tree($dir, $rev = 'HEAD') { (G -C $dir ls-tree --name-only $rev) -join "`n" }
 }
 
+Describe 'second-brain на Windows' {
+
 BeforeEach {
     $root = Join-Path $TestDrive ([guid]::NewGuid().ToString('N'))
     New-Item -ItemType Directory $root | Out-Null
@@ -109,4 +111,6 @@ Describe 'windows-task.ps1' -Skip:($env:OS -ne 'Windows_NT') {
         & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $Task -Vault $a -Name $name -Remove | Out-Null
         Get-ScheduledTask -TaskName $name -ErrorAction SilentlyContinue | Should -BeNullOrEmpty
     }
+}
+
 }

@@ -28,8 +28,8 @@ jobs:
       - name: Pester — sync.ps1 и задача Планировщика
         shell: powershell
         run: |
-          Install-Module Pester -MinimumVersion 5.5 -Force -SkipPublisherCheck -Scope CurrentUser
-          Import-Module Pester -MinimumVersion 5.5
+          Install-Module Pester -MinimumVersion 5.5 -MaximumVersion 5.99 -Force -SkipPublisherCheck -Scope CurrentUser
+          Import-Module Pester -MinimumVersion 5.5 -MaximumVersion 5.99
           $c = New-PesterConfiguration
           $c.Run.Path = 'skills/second-brain/tests/sync.Tests.ps1'
           $c.Run.Exit = $true
