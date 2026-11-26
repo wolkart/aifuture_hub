@@ -102,3 +102,7 @@ def test_cli_writes_index(vault):
     assert out.returncode == 0, out.stderr
     assert "### Сайт студии" in (vault / "index.md").read_text(encoding="utf-8")
     assert "index.md:" in out.stdout
+
+
+def test_no_double_blank_lines(vault):
+    assert "\n\n\n" not in build_index(vault, today=TODAY)

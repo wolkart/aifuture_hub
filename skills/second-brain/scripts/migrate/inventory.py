@@ -13,7 +13,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))  # python3 -I не добавляет папку скрипта сам
 
-from vaultlib import iter_files, nfc, utf8_stdio, write_text  # noqa: E402
+from vaultlib import iter_files, nfc, utf8_stdio, vault_arg, write_text  # noqa: E402
 
 SKIP = {".git", ".obsidian", ".trash", "_переезд"}
 JUNK = {".DS_Store", "Thumbs.db", "desktop.ini"}
@@ -135,11 +135,11 @@ def main(argv=None):
     utf8_stdio()
     a = ap.parse_args(argv)
     if a.cmd == "tree":
-        print(tree(Path(a.vault), a.depth))
+        print(tree(vault_arg(a.vault), a.depth))
         return 0
-    rules = json.loads(Path(a.rules).read_text(encoding="utf-8"))["rules"]
-    plan = build(Path(a.vault), rules)
-    out = Path(a.out) if a.out else Path(a.vault) / "_переезд"
+    rules = json.loads(vault_arg(a.rules).read_text(encoding="utf-8"))["rules"]
+    plan = build(vault_arg(a.vault), rules)
+    out = vault_arg(a.out) if a.out else vault_arg(a.vault) / "_переезд"
     out.mkdir(parents=True, exist_ok=True)
     write_text(out / "plan.json", json.dumps(plan, ensure_ascii=False, indent=1))
     write_text(out / "Опись.md", render(plan, date.today().isoformat()))

@@ -17,8 +17,11 @@ VAULT=$(cd "$VAULT" && pwd -P)
 HERE=$(cd "$(dirname "$0")" && pwd -P)
 
 BIN="$HOME/.local/bin/second-brain-sync.sh"
-PLIST="$HOME/Library/LaunchAgents/$LABEL.plist"
 LOG="$HOME/Library/Logs/second-brain-sync.log"
+if [ "$LABEL" != "local.second-brain.sync" ]; then   # своя метка (проба) — свои скрипт и лог, настоящие не трогаем
+  BIN="$HOME/.local/bin/$LABEL.sh"; LOG="$HOME/Library/Logs/$LABEL.log"
+fi
+PLIST="$HOME/Library/LaunchAgents/$LABEL.plist"
 mkdir -p "$(dirname "$BIN")" "$(dirname "$PLIST")" "$(dirname "$LOG")"
 cp "$HERE/sync.sh" "$BIN"
 chmod +x "$BIN"

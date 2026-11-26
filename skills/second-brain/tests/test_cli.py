@@ -27,3 +27,13 @@ def test_cards_cli(vault):
     r = run("cards.py", vault)
     assert r.returncode == 0, r.stderr
     assert "Сайт студии: ссылок 2" in r.stdout
+
+
+def test_tilde_path(tmp_path, vault):
+    """Путь мозга в командах _CLAUDE.md стоит в кавычках — оболочка «~» не раскроет, раскрывает скрипт."""
+    import os
+    env = dict(os.environ, HOME=str(vault.parent), USERPROFILE=str(vault.parent))
+    for script in ("index.py", "cards.py", "links.py"):
+        r = subprocess.run([sys.executable, "-I", str(SCRIPTS / script), "~/brain"],
+                           capture_output=True, text=True, encoding="utf-8", env=env)
+        assert r.returncode == 0, (script, r.stderr)

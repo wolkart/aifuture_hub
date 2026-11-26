@@ -11,7 +11,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))  # python3 -I не добавляет папку скрипта сам
 
-from vaultlib import iter_files, name_counts, nfc, read_text, resolve, utf8_stdio, wikilink, write_text
+from vaultlib import iter_files, name_counts, nfc, read_text, resolve, utf8_stdio, vault_arg, wikilink, write_text
 
 SERVICE = {"index.md", "README.md", "_CLAUDE.md", "AGENTS.md", "About Me.md"}
 _FM = re.compile(r"^---\n(.*?)\n---\n?", re.S)
@@ -145,7 +145,7 @@ def build_index(root: Path, big: int = 30, today: str = None) -> str:
     if exists("templates"):
         L += ["## Шаблоны — templates/", ""] + c.tree("templates") + [""]
 
-    return "\n".join(L).rstrip() + "\n"
+    return re.sub(r"\n{3,}", "\n\n", "\n".join(L)).rstrip() + "\n"
 
 
 def main(argv=None):
@@ -154,8 +154,9 @@ def main(argv=None):
     ap.add_argument("--big", type=int, default=30, help="больше стольких заметок — папка одной строкой")
     utf8_stdio()
     a = ap.parse_args(argv)
-    text = build_index(Path(a.vault), a.big)
-    write_text(Path(a.vault) / "index.md", text)
+    root = vault_arg(a.vault)
+    text = build_index(root, a.big)
+    write_text(root / "index.md", text)
     print(f"index.md: {text.count(chr(10))} строк, {len(text)} знаков")
 
 

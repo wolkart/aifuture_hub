@@ -7,7 +7,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))  # python3 -I не добавляет папку скрипта сам
 
-from vaultlib import iter_files, name_counts, nfc, read_text, utf8_stdio, wikilink, write_text
+from vaultlib import iter_files, name_counts, nfc, read_text, utf8_stdio, vault_arg, wikilink, write_text
 
 START = "<!-- заметки проекта: начало (пересобирается скриптом второго мозга cards.py) -->"
 END = "<!-- заметки проекта: конец -->"
@@ -56,5 +56,5 @@ def update_cards(root: Path) -> dict:
 
 if __name__ == "__main__":
     utf8_stdio()
-    for proj, n in update_cards(Path(sys.argv[1])).items():
+    for proj, n in update_cards(vault_arg(sys.argv[1])).items():
         print(f"{proj}: ссылок {n}")

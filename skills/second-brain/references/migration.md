@@ -48,11 +48,11 @@ cd "<мозг>"
 git init -q -b main
 git config core.quotepath false
 git config core.precomposeunicode true      # только Мак
+[ -n "$(git config user.email)" ] || { git config user.name "Второй мозг"; git config user.email "second-brain@$(hostname -s)"; }
 git add -A && git commit -q -m "Старый волт как был"
 git tag old-vault-<ГГГГ-ММ-ДД>
 ```
 
-Имени в Git нет — коммить с `-c user.name="Второй мозг" -c user.email=second-brain@<имя компьютера>`.
 С этого момента всё, что «не берём», остаётся в этом коммите — его можно достать в любой момент.
 
 ## 4. Биография — до архива

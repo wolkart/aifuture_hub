@@ -61,8 +61,9 @@ def main(argv=None):
     ap.add_argument("files", nargs="+")
     utf8_stdio()
     a = ap.parse_args(argv)
-    plan = json.loads(Path(a.plan).read_text(encoding="utf-8")) if a.plan else None
-    for f, n, left in run(a.files, a.old, a.new, plan, a.dry):
+    plan = json.loads(Path(os.path.expanduser(a.plan)).read_text(encoding="utf-8")) if a.plan else None
+    old, new = os.path.expanduser(a.old), os.path.expanduser(a.new)
+    for f, n, left in run(a.files, old, new, plan, a.dry):
         print(f"{n:3} замен, осталось старых: {left}  {f}")
     return 0
 

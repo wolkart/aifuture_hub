@@ -79,8 +79,8 @@ mkdir -p <мозг> && cp -R <скилл>/templates/vault/. <мозг>/
 cd <мозг> && ln -s _CLAUDE.md AGENTS.md
 ```
 
-В `_CLAUDE.md` замени `<путь к мозгу>` на путь, в свойствах `About Me.md` и `index.md`
-`<ГГГГ-ММ-ДД>` — на сегодняшнюю дату.
+В `_CLAUDE.md` замени `<путь к мозгу>` на путь к мозгу (`~/second-brain` подойдёт: скрипты
+раскрывают `~` сами), в свойствах `About Me.md` и `index.md` `<ГГГГ-ММ-ДД>` — на сегодняшнюю дату.
 
 **4. Git.**
 
@@ -89,11 +89,10 @@ cd <мозг>
 git init -q -b main
 git config core.quotepath false
 git config core.precomposeunicode true      # только Мак: «й» и «ё» в именах
+# имени в Git нет — подписываем мозг «Второй мозг», иначе Мак подставит системное имя человека
+[ -n "$(git config user.email)" ] || { git config user.name "Второй мозг"; git config user.email "second-brain@$(hostname -s)"; }
 git add -A && git commit -q -m "Второй мозг создан"
 ```
-
-`git config user.email` пусто — коммить с `-c user.name="Второй мозг" -c user.email=second-brain@<имя компьютера>`:
-так же подписывается фоновая задача.
 
 **5. Обо мне.** Спроси по одному, ответы — в `About Me.md` по трём разделам:
 1. Кто ты и чем занимаешься?
@@ -111,33 +110,50 @@ git add -A && git commit -q -m "Второй мозг создан"
 проектов самому:
 
 ```bash
-find ~ -maxdepth 4 -name .git -type d -not -path '*/node_modules/*' -not -path '*/Library/*' 2>/dev/null
+find ~ -maxdepth 4 \( -name Library -o -name node_modules -o \( -name '.*' -not -name .git \) \) -prune \
+  -o -name .git -type d -print 2>/dev/null | sed 's#/\.git$##'
 ```
 
-Покажи список, человек вычеркнет лишнее. На каждый проект — карточка
-`projects/<Проект>/<Проект>.md` по `templates/Карточка проекта.md`: «Что это» — из README проекта
-или со слов человека; «Где живёт» — путь и `git -C <папка> remote get-url origin`; «Где смотреть
-статус» — `PROGRESS.md`, если есть. Сами проекты не переносятся: карточка — указатель. Потом:
+Покажи список без самого мозга, человек вычеркнет лишнее. На каждый проект — карточка
+`projects/<Проект>/<Проект>.md` по шаблону `<мозг>/templates/Карточка проекта.md`:
+- `<Проект>` — название по-человечески: заголовок README проекта или слова человека, не имя папки;
+- `{{date:YYYY-MM-DD}}`, `{{title}}` и все `<…>` замени; чего не знаешь — убери строку;
+- «Что это» — из README проекта или со слов человека;
+- «Где живёт» — путь и `git -C <папка> remote get-url origin`; нет origin — «git только на компьютере»;
+- «Где смотреть статус» — `PROGRESS.md`, если есть, иначе история Git проекта;
+- «Главное решено» — пока «—»: решения агенты допишут по ходу работы.
+
+Сами проекты не переносятся: карточка — указатель. Потом каталог, карточки и коммит (установка —
+исключение из правила «агент не делает git в мозге»):
 
 ```bash
 python3 -I <скилл>/scripts/index.py <мозг>
 python3 -I <скилл>/scripts/cards.py <мозг>
+git -C <мозг> add -A && git -C <мозг> commit -q -m "Обо мне и проекты"
 ```
 
 Python нет — строки в `index.md` допиши сам по образцу.
 
-**7. Правило для агентов.** Текст [templates/agents-block.md](templates/agents-block.md), в нём
-`<путь к мозгу>` → путь (с `~/`, если мозг в домашней папке) — в `~/.agents/AGENTS.md`: файла нет —
-создай; раздел `## Второй мозг` есть — замени; нет — допиши в конец. Потом программы из ответа на
-вопрос 1:
-- **Claude Code:** в `~/.claude/CLAUDE.md` строка `@~/.agents/AGENTS.md`, если её нет. В главном
-  файле есть раздел `## Память` — рядом строка «Раздел „Память“ оттуда к Claude Code не относится:
-  у него своя память».
-- **Codex, OpenCode, Kimi:** читают `~/.agents/AGENTS.md`, если стоит память агента. Проверь:
-  `~/.codex/AGENTS.md` и `~/.config/opencode/AGENTS.md` — ярлыки на главный файл. Нет — подключи
-  по шагу 3 «Установки» скилла agent-memory:
-  https://github.com/wolkart/aifuture_hub/blob/main/skills/agent-memory/SKILL.md. Чужой файл
-  настроек не затирай: сначала покажи человеку, что в нём.
+**7. Правило для агентов.** Текст `<скилл>/templates/agents-block.md`, в нём `<путь к мозгу>` →
+путь (с `~/`, если мозг в домашней папке) — в общий файл агентов `~/.agents/AGENTS.md`: файла нет —
+создай; раздел `## Второй мозг` есть — замени; нет — допиши в конец. Потом — программы из ответа
+про программы (шаг 1):
+- **Claude Code:** в `~/.claude/CLAUDE.md` строка `@~/.agents/AGENTS.md`, если её нет (файла нет —
+  создай). В `~/.agents/AGENTS.md` есть раздел `## Память` — сразу под этой строкой допиши: «Раздел
+  „Память“ оттуда к Claude Code не относится: у него своя память».
+- **Kimi Code** читает `~/.agents/AGENTS.md` сам.
+- **Codex, OpenCode** — через ярлык на общий файл:
+
+  ```bash
+  mkdir -p ~/.codex ~/.config/opencode
+  ln -s ~/.agents/AGENTS.md ~/.codex/AGENTS.md              # Codex
+  ln -s ~/.agents/AGENTS.md ~/.config/opencode/AGENTS.md    # OpenCode
+  ```
+
+  Ярлык уже есть — ничего не делай. На его месте обычный файл с текстом — не затирай: покажи
+  человеку и дальше по шагу 3 «Установки» скилла agent-memory (там же Windows):
+  https://github.com/wolkart/aifuture_hub/blob/main/skills/agent-memory/SKILL.md. Проверка Codex:
+  `codex debug prompt-input < /dev/null | grep "## Второй мозг"`.
 
 **8. Фоновое сохранение.** Мак: `bash <скилл>/scripts/install-sync.sh <мозг>`. Windows — по
 [references/windows.md](references/windows.md). Linux — строка cron, как в
@@ -148,8 +164,10 @@ Python нет — строки в `index.md` допиши сам по образ
 `winget install Obsidian.Obsidian`. Дальше: «Open folder as vault» → папка мозга.
 
 **10. Проверка.** Новое окно агента в любом другом проекте: «Что ты знаешь о моих проектах?» —
-ответ должен прийти из карточек мозга. Через 5 минут: `git -C <мозг> log -1 --format=%s`
-начинается с `auto:` (если были изменения) — фоновая задача работает.
+ответ должен прийти из карточек мозга. Через 5 минут фоновая задача отработала дважды (при
+загрузке и по расписанию): `launchctl print gui/$(id -u)/local.second-brain.sync | grep -E 'runs|last exit code'`
+— `runs` не меньше 2, код 0; в `~/Library/Logs/second-brain-sync.log` — строки «ок». Windows — по
+[references/windows.md](references/windows.md).
 
 В конце скажи человеку, что поставлено и где, и дай три фразы: «запиши во второй мозг …»,
 «разложи входящее», «проверь второй мозг». Предложи уровни 2–3, если он их хотел.

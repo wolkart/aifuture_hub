@@ -9,7 +9,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))  # python3 -I не добавляет папку скрипта сам
 
-from vaultlib import iter_files, read_text, resolve, utf8_stdio  # noqa: E402
+from vaultlib import iter_files, read_text, resolve, utf8_stdio, vault_arg  # noqa: E402
 
 Hit = namedtuple("Hit", "path line kind masked placeholder")
 
@@ -60,7 +60,7 @@ def scan(root: Path) -> list:
 
 if __name__ == "__main__":
     utf8_stdio()
-    found = scan(Path(sys.argv[1]))
+    found = scan(vault_arg(sys.argv[1]))
     for h in found:
         print(f"{h.path}:{h.line}:{h.kind}:{h.masked}" + (" (похоже на заглушку)" if h.placeholder else ""))
     real = sum(not h.placeholder for h in found)

@@ -78,3 +78,8 @@ def utf8_stdio() -> None:
             stream.reconfigure(encoding="utf-8", errors="replace")
         except (AttributeError, ValueError):
             pass
+
+
+def vault_arg(s: str) -> Path:
+    """Путь из командной строки: «~» раскрываем сами — в кавычках оболочка его не раскроет."""
+    return Path(os.path.expanduser(s))

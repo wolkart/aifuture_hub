@@ -13,7 +13,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))  # python3 -I не добавляет папку скрипта сам
 
 from links import broken_links  # noqa: E402
-from vaultlib import SKIP_DIRS, iter_files, nfc, read_text, resolve, utf8_stdio, write_text  # noqa: E402
+from vaultlib import SKIP_DIRS, iter_files, nfc, read_text, resolve, utf8_stdio, vault_arg, write_text  # noqa: E402
 
 TEXT_EXT = (".md", ".base", ".canvas")
 
@@ -157,7 +157,7 @@ def run(root: Path, plan: dict, dry: bool) -> dict:
 if __name__ == "__main__":
     utf8_stdio()
     args = [a for a in sys.argv[1:] if a != "--dry"]
-    r = run(Path(args[0]), json.loads(Path(args[1]).read_text(encoding="utf-8")), dry="--dry" in sys.argv)
+    r = run(vault_arg(args[0]), json.loads(vault_arg(args[1]).read_text(encoding="utf-8")), dry="--dry" in sys.argv)
     print(("ПРОБА, ничего не изменено. " if "--dry" in sys.argv else "") +
           f"перенесено: {r['moved']} | не взято: {r['skipped']} | заметок с поправленными путями: {r['rewritten']}")
     print(f"настройки Obsidian: {', '.join(r['obsidian']) or 'без изменений'}")

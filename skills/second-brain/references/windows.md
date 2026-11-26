@@ -47,6 +47,7 @@ Set-Content -Encoding UTF8 "<мозг>\AGENTS.md" "Правила — в ``_CLAU
 
 ```powershell
 git config core.longpaths true
+if (-not (git config user.email)) { git config user.name "Второй мозг"; git config user.email "second-brain@$env:COMPUTERNAME" }
 ```
 
 `.gitattributes` из шаблона (`* text=auto eol=lf`) держит концы строк одинаковыми на Маке и Windows.

@@ -174,3 +174,17 @@ def test_install_sync_plist(repos, env):
     assert subprocess.run(["plutil", "-lint", plist], capture_output=True).returncode == 0
     text = open(plist, encoding="utf-8").read()
     assert str(a) in text and "<integer>300</integer>" in text and bin_ in text
+
+
+@pytest.mark.skipif(sys.platform != "darwin", reason="launchd — только Мак")
+def test_install_sync_custom_label_separate_files(repos, env):
+    """Тестовая метка не должна перезаписать скрипт и лог настоящей задачи."""
+    _, a, _ = repos
+    r = subprocess.run(["bash", str(SCRIPTS / "install-sync.sh"), str(a), "--label", "local.second-brain.sync.test", "--no-load"],
+                       env=env, capture_output=True, text=True)
+    assert r.returncode == 0, r.stdout + r.stderr
+    home = env["HOME"]
+    assert not os.path.exists(os.path.join(home, ".local/bin/second-brain-sync.sh"))
+    text = open(os.path.join(home, "Library/LaunchAgents/local.second-brain.sync.test.plist"), encoding="utf-8").read()
+    assert os.path.join(home, ".local/bin/local.second-brain.sync.test.sh") in text
+    assert os.path.join(home, "Library/Logs/local.second-brain.sync.test.log") in text

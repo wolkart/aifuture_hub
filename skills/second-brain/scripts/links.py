@@ -5,7 +5,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))  # python3 -I не добавляет папку скрипта сам
 
-from vaultlib import LINK_RE, iter_files, nfc, read_text, resolve, strip_code, utf8_stdio
+from vaultlib import LINK_RE, iter_files, nfc, read_text, resolve, strip_code, utf8_stdio, vault_arg
 
 
 def broken_links(root: Path) -> set:
@@ -28,7 +28,7 @@ def broken_links(root: Path) -> set:
 
 if __name__ == "__main__":
     utf8_stdio()
-    found = sorted(broken_links(Path(sys.argv[1])))
+    found = sorted(broken_links(vault_arg(sys.argv[1])))
     for note, target in found:
         print(f"{note} → {target}")
     print(f"битых ссылок: {len(found)}")
