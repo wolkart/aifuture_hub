@@ -1,0 +1,14 @@
+# служебное macOS и Windows
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# состояние окна Obsidian: меняется постоянно, у каждого устройства своё
+.obsidian/workspace*.json
+.obsidian/cache
+
+# корзина и следы синхронизаторов
+.trash/
+*.sync-conflict-*
+.stfolder
+.stversions
