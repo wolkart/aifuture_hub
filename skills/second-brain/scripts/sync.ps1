@@ -36,6 +36,10 @@ function Show-Notice([string]$title, [string]$text) {
     } catch { Write-Log "уведомление не показалось: $($_.Exception.Message)" }
 }
 
+$GitExe = @(Get-Command git -CommandType Application)[0].Source
+# на сервере и у другого владельца папки Git без safe.directory откажется работать
+function git { & $GitExe -c "safe.directory=$($script:VGit)" @args }
+
 function Invoke-Sync {
     if (Test-Path -LiteralPath '.git\rebase-merge' -PathType Container) { Write-Log 'пропуск: идёт rebase'; return 0 }
     if (Test-Path -LiteralPath '.git\rebase-apply' -PathType Container) { Write-Log 'пропуск: идёт rebase'; return 0 }
@@ -46,10 +50,12 @@ function Invoke-Sync {
     if (-not (git config user.email)) { $G = @('-c', 'user.name=Второй мозг', '-c', "user.email=second-brain@$env:COMPUTERNAME") }
 
     git add -A 2>$null
+    if ($LASTEXITCODE -ne 0) { Write-Log 'ошибка Git: не удалось сохранить изменения'; return 3 }
     git diff --cached --quiet
     if ($LASTEXITCODE -ne 0) {
         $n = @(git diff --cached --name-only).Count
         git @G commit -q -m ("auto: {0} · {1} · файлов: {2}" -f (Get-Date -Format 'yyyy-MM-dd HH:mm'), $env:COMPUTERNAME, $n) | Out-Null
+        if ($LASTEXITCODE -ne 0) { Write-Log 'ошибка Git: коммит не удался'; return 3 }
     }
 
     git remote get-url origin *> $null
@@ -66,6 +72,10 @@ function Invoke-Sync {
     if ($LASTEXITCODE -eq 0) {
         git @G rebase -q "origin/$branch" *> $null
         if ($LASTEXITCODE -ne 0) {
+            if (-not ((Test-Path -LiteralPath '.git\rebase-merge') -or (Test-Path -LiteralPath '.git\rebase-apply'))) {
+                Write-Log 'не удалось подтянуть правки: папка менялась во время синхронизации — повторю в следующий раз'
+                return 2
+            }
             git rebase --abort *> $null
             [IO.File]::WriteAllText((Join-Path (Get-Location).ProviderPath '.git\second-brain-conflict'), '', $Utf8)
             Write-Log 'КОНФЛИКТ — нужна ручная правка'
@@ -82,11 +92,11 @@ function Invoke-Sync {
 if (-not (Test-Path -LiteralPath $Vault -PathType Container)) { Write-Log "пропуск: нет папки $Vault"; exit 3 }
 Set-Location -LiteralPath $Vault
 $V = (Resolve-Path -LiteralPath $Vault).ProviderPath
+$VGit = $V -replace '\\', '/'
 if (-not (Test-Path -LiteralPath '.git' -PathType Container)) { Write-Log "пропуск: $V — не Git-репозиторий"; exit 0 }
 
-# один запуск за раз: расписание и ручной запуск не должны тянуть изменения одновременно
-$hash = [BitConverter]::ToString((New-Object Security.Cryptography.SHA1Managed).ComputeHash([Text.Encoding]::UTF8.GetBytes($V))).Replace('-', '').Substring(0, 12)
-$Lock = Join-Path ([IO.Path]::GetTempPath()) "second-brain-sync-$hash.lock"
+# один запуск за раз: расписание и ручной запуск не должны тянуть изменения одновременно; замок — в .git мозга
+$Lock = Join-Path $V '.git\second-brain-sync.lock'
 if ((Test-Path -LiteralPath $Lock) -and (Get-Item -LiteralPath $Lock).LastWriteTime -lt (Get-Date).AddMinutes(-15)) {
     Remove-Item -LiteralPath $Lock -Recurse -Force
 }

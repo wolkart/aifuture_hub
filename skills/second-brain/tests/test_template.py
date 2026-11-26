@@ -34,7 +34,7 @@ def test_six_questions():
 
 def test_gitignore():
     text = read(".gitignore")
-    for line in (".obsidian/workspace*.json", ".trash/", ".DS_Store", "*.sync-conflict-*"):
+    for line in (".obsidian/workspace*.json", ".obsidian/plugins/*/data.json", ".trash/", ".DS_Store", "*.sync-conflict-*"):
         assert line in text.splitlines(), line
 
 

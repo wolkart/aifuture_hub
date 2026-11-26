@@ -27,11 +27,13 @@ notify() {
 cd "$VAULT" 2>/dev/null || { log "пропуск: нет папки $VAULT"; exit 3; }
 V=$(pwd -P)
 [ -d .git ] || { log "пропуск: $V — не Git-репозиторий"; exit 0; }
+# на сервере cron работает от root, а папка — пользователя агента: без safe.directory Git откажется
+git() { command git -c safe.directory="$V" "$@"; }
 
-# один запуск за раз: расписание и ручной запуск не должны тянуть изменения одновременно
-TMP="${TMPDIR:-/tmp}"; TMP="${TMP%/}"
-LOCK="$TMP/second-brain-sync-$(printf %s "$V" | cksum | cut -d' ' -f1).lock"
-find "$TMP" -maxdepth 1 -name "$(basename "$LOCK")" -mmin +15 -exec rmdir {} \; 2>/dev/null
+# один запуск за раз: расписание и ручной запуск не должны тянуть изменения одновременно.
+# Замок — в .git мозга: у задачи launchd и у терминала разные TMPDIR, общий только .git
+LOCK="$V/.git/second-brain-sync.lock"
+find "$V/.git" -maxdepth 1 -name second-brain-sync.lock -mmin +15 -exec rmdir {} \; 2>/dev/null
 mkdir "$LOCK" 2>/dev/null || { log "пропуск: синхронизация уже идёт"; exit 0; }
 trap 'rmdir "$LOCK" 2>/dev/null; [ -n "$CHOWN" ] && chown -R "$CHOWN" "$V"' EXIT
 
@@ -45,10 +47,11 @@ if [ -z "$(git config user.email)" ]; then
   G=(git -c "user.name=Второй мозг" -c "user.email=second-brain@$(hostname -s 2>/dev/null || echo local)")
 fi
 
-git add -A
+git add -A || { log "ошибка Git: не удалось сохранить изменения"; exit 3; }
 if ! git diff --cached --quiet; then
   n=$(git diff --cached --name-only | wc -l | tr -d ' ')
-  "${G[@]}" commit -q -m "auto: $(date '+%Y-%m-%d %H:%M') · $(hostname -s 2>/dev/null) · файлов: $n"
+  "${G[@]}" commit -q -m "auto: $(date '+%Y-%m-%d %H:%M') · $(hostname -s 2>/dev/null) · файлов: $n" \
+    || { log "ошибка Git: коммит не удался"; exit 3; }
 fi
 
 git remote get-url origin >/dev/null 2>&1 || { log "ок: сохранено на компьютере"; exit 0; }
@@ -61,11 +64,15 @@ BRANCH=$(git symbolic-ref --short HEAD)
 git fetch -q origin || { log "нет связи с GitHub — повторю в следующий раз"; exit 2; }
 if git rev-parse -q --verify "origin/$BRANCH" >/dev/null; then
   if ! "${G[@]}" rebase -q "origin/$BRANCH" >/dev/null 2>&1; then
-    git rebase --abort 2>/dev/null
-    : > .git/second-brain-conflict
-    log "КОНФЛИКТ — нужна ручная правка"
-    notify "Второй мозг: нужна ручная правка" "Изменения с двух устройств пересеклись. Ничего не потеряно — попроси агента разобрать конфликт."
-    exit 1
+    if [ -d .git/rebase-merge ] || [ -d .git/rebase-apply ]; then   # rebase начался и встал — правки пересеклись
+      git rebase --abort 2>/dev/null
+      : > .git/second-brain-conflict
+      log "КОНФЛИКТ — нужна ручная правка"
+      notify "Второй мозг: нужна ручная правка" "Изменения с двух устройств пересеклись. Ничего не потеряно — попроси агента разобрать конфликт."
+      exit 1
+    fi
+    log "не удалось подтянуть правки: папка менялась во время синхронизации — повторю в следующий раз"
+    exit 2
   fi
 fi
 git push -q origin "$BRANCH" 2>/dev/null && log "ок" || { log "push не удался — повторю в следующий раз"; exit 2; }

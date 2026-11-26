@@ -71,7 +71,10 @@ def build(root: Path, rules: list) -> dict:
             if v and p.endswith(".md"):
                 for m in LINK_RE.finditer(strip_code(read_text(resolve(root, p)))):
                     targets.add(nfc(m.group(1)).strip().split("/")[-1])
-    taken = Counter(v for v in dest.values() if v)
+    taken = defaultdict(list)   # без учёта регистра: Мак не различает Plan.md и plan.md
+    for v in dest.values():
+        if v:
+            taken[v.casefold()].append(v)
     names = defaultdict(set)
     for v in dest.values():
         if v and v.endswith(".md"):
@@ -81,7 +84,7 @@ def build(root: Path, rules: list) -> dict:
         "dest": dest,
         "hit": {str(i): v for i, v in hit.items()},
         "unmatched": unmatched,
-        "collisions": sorted(k for k, n in taken.items() if n > 1),
+        "collisions": sorted(min(vs) for vs in taken.values() if len(vs) > 1),
         "same_name": {k: sorted(v) for k, v in sorted(names.items()) if len(v) > 1},
         "dropped_linked": sorted(p for stem, p in dropped.items() if stem in targets),
         "bad_names": [p for p in sorted(dest) + unmatched

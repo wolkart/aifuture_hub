@@ -100,7 +100,8 @@ class PathRewriter:
         self.pairs = {k: v for k, v in pairs.items() if k}
         anchors = anchors or {k.split("/")[0] for k in self.pairs}
         alt = "|".join(re.escape(a) for a in sorted(anchors, key=len, reverse=True))
-        self.rx = re.compile(r"(?<![\w-])(?:" + alt + ")") if alt else None
+        # перед путём не буква, не «/» и не «.» — иначе это середина другого пути или ссылки в интернете
+        self.rx = re.compile(r"(?<![\w/.-])(?:" + alt + ")") if alt else None
         self.lengths = sorted({len(k) for k in self.pairs}, reverse=True)
 
     def sub(self, text: str):
@@ -114,7 +115,8 @@ class PathRewriter:
                 continue
             for length in self.lengths:
                 key = text[s:s + length]
-                if len(key) == length and key in self.pairs and not _continues(text, s + length):
+                ends_dir = key.endswith("/")   # ключ «папка/» — дальше путь продолжается
+                if len(key) == length and key in self.pairs and (ends_dir or not _continues(text, s + length)):
                     out += [text[pos:s], self.pairs[key]]
                     pos, n = s + length, n + 1
                     break

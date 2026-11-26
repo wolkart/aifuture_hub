@@ -62,8 +62,7 @@ Describe 'sync.ps1' {
         Get-Tree $remote 'main' | Should -Match 'from-b.md'
     }
     It 'пропускает ход, если замок занят' {
-        $hash = [BitConverter]::ToString((New-Object Security.Cryptography.SHA1Managed).ComputeHash([Text.Encoding]::UTF8.GetBytes((Resolve-Path -LiteralPath $a).ProviderPath))).Replace('-', '').Substring(0, 12)
-        $lock = Join-Path ([IO.Path]::GetTempPath()) "second-brain-sync-$hash.lock"
+        $lock = Join-Path $a '.git\second-brain-sync.lock'
         New-Item -ItemType Directory $lock -Force | Out-Null
         try {
             Write-Note $a 'x.md' "x`n"
@@ -85,6 +84,18 @@ Describe 'sync.ps1' {
         $out | Should -Match 'стоит конфликт'
         Get-Tree $b | Should -Match 'later.md'
         (Get-Notices).Count | Should -Be 1
+    }
+    It 'папка менялась во время синхронизации — не конфликт' {
+        Write-Note $a 'from-a.md' "a`n"; Invoke-Sync $a | Should -Be 0
+        $hook = Join-Path $b '.git\hooks\post-commit'
+        [IO.File]::WriteAllText($hook, "#!/bin/sh`necho changed >> note.md`n", (New-Object Text.UTF8Encoding $false))
+        Write-Note $b 'x.md' "x`n"
+        Invoke-Sync $b | Should -Be 2
+        Test-Path (Join-Path $b '.git\second-brain-conflict') | Should -BeFalse
+        (Get-Notices).Count | Should -Be 0
+        Remove-Item $hook
+        Invoke-Sync $b | Should -Be 0
+        Test-Path (Join-Path $b 'from-a.md') | Should -BeTrue
     }
     It 'нет связи — не конфликт' {
         G -C $a remote set-url origin (Join-Path $root 'нет.git') | Out-Null

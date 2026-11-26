@@ -7,6 +7,9 @@ desktop.ini
 .obsidian/workspace*.json
 .obsidian/cache
 
+# настройки плагинов: в них плагины держат ключи к нейросетям — в историю и на GitHub не отправляем
+.obsidian/plugins/*/data.json
+
 # корзина и следы синхронизаторов
 .trash/
 *.sync-conflict-*

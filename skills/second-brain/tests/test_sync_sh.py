@@ -56,9 +56,8 @@ def notifications(tmp_path):
 
 
 def lock_path(vault, env):
-    real = subprocess.run(["bash", "-c", 'cd "$1" && pwd -P', "_", str(vault)], capture_output=True, text=True).stdout.strip()
-    ck = subprocess.run(["cksum"], input=real, capture_output=True, text=True).stdout.split()[0]
-    return os.path.join(env["TMPDIR"], f"second-brain-sync-{ck}.lock")
+    """Замок — в .git мозга: у задачи launchd и у ручного запуска разные TMPDIR, общий только .git."""
+    return os.path.join(str(vault), ".git", "second-brain-sync.lock")
 
 
 def test_commit_only_without_origin(tmp_path, env):
@@ -188,3 +187,31 @@ def test_install_sync_custom_label_separate_files(repos, env):
     text = open(os.path.join(home, "Library/LaunchAgents/local.second-brain.sync.test.plist"), encoding="utf-8").read()
     assert os.path.join(home, ".local/bin/local.second-brain.sync.test.sh") in text
     assert os.path.join(home, "Library/Logs/local.second-brain.sync.test.log") in text
+
+
+def test_dirty_tree_during_sync_is_not_conflict(tmp_path, repos, env):
+    """Obsidian сохранил заметку, пока шла синхронизация: rebase отказывается — это не конфликт."""
+    _, a, b = repos
+    write(a, "from-a.md", "a\n"); assert sync(a, env).returncode == 0
+    hook = b / ".git" / "hooks" / "post-commit"
+    hook.write_text('#!/bin/bash\necho "дописал, пока шла синхронизация" >> note.md\n', encoding="utf-8")
+    hook.chmod(0o755)
+    write(b, "x.md", "x\n")
+    r = sync(b, env)
+    assert r.returncode == 2, r.stdout + r.stderr
+    assert not (b / ".git" / "second-brain-conflict").exists()
+    assert notifications(tmp_path) == []
+    hook.unlink()
+    assert sync(b, env).returncode == 0
+    assert (b / "from-a.md").exists()
+
+
+def test_foreign_owner_repo_still_syncs(tmp_path, env):
+    """Сервер: cron от root, папка — пользователя агента. Git без safe.directory отказался бы, а скрипт писал «ок»."""
+    v = tmp_path / "srv"
+    git(tmp_path, "init", "-q", "-b", "main", str(v), env=env)
+    write(v, "a.md", "текст\n")
+    e = dict(env, GIT_TEST_ASSUME_DIFFERENT_OWNER="1")
+    r = sync(v, e)
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert git(v, "log", "-1", "--format=%s", env=env).startswith("auto: ")

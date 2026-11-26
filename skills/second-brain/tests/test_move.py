@@ -138,3 +138,76 @@ def test_many_files_fast(tmp_path):
     assert r["moved"] == 300
     assert time.time() - t0 < 10
     assert "см. wiki/Папка 2/Заметка 2.md" in (root / "wiki/Папка 1/Заметка 1.md").read_text(encoding="utf-8")
+
+
+# ── финальное ревью: ни одна заметка не теряется, обычный текст не трогается ──
+
+def _files(root):
+    import os
+    return sorted(p for p in __import__("vaultlib").iter_files(root) if not p.startswith("_переезд/"))
+
+
+def test_chain_does_not_overwrite(tmp_path):
+    root = tmp_path / "v"
+    write(root, "Notes/README.md", "из Notes\n")
+    write(root, "wiki/README.md", "старая wiki\n")
+    rules_ = [{"from": "Notes/", "to": "wiki/", "why": "", "ask": ""},
+              {"from": "wiki/", "to": "archive/old-wiki/", "why": "", "ask": ""}]
+    run(root, build(root, rules_), dry=False)
+    assert (root / "wiki/README.md").read_text(encoding="utf-8") == "из Notes\n"
+    assert (root / "archive/old-wiki/README.md").read_text(encoding="utf-8") == "старая wiki\n"
+
+
+def test_duplicate_kept_under_original_name(tmp_path):
+    root = tmp_path / "v"
+    write(root, "Заметка.md", "старая\n")
+    write(root, "Заметка (2).md", "свежая\n")
+    rules_ = [{"from": "Заметка (2).md", "to": "Заметка.md", "why": "", "ask": ""},
+              {"from": "Заметка.md", "to": None, "why": "", "ask": ""}]
+    run(root, build(root, rules_), dry=False)
+    assert _files(root) == ["Заметка.md"]
+    assert (root / "Заметка.md").read_text(encoding="utf-8") == "свежая\n"
+
+
+def test_collision_refused(tmp_path):
+    root = tmp_path / "v"
+    write(root, "A/План.md", "а\n"); write(root, "B/План.md", "б\n")
+    plan_ = build(root, [{"from": "A/", "to": "wiki/", "why": "", "ask": ""}, {"from": "B/", "to": "wiki/", "why": "", "ask": ""}])
+    with pytest.raises(SystemExit, match="одно место"):
+        run(root, plan_, dry=False)
+    assert _files(root) == ["A/План.md", "B/План.md"]
+
+
+def test_case_only_collision_refused(tmp_path):
+    root = tmp_path / "v"
+    write(root, "A/Plan.md", "а\n"); write(root, "B/plan.md", "б\n")
+    plan_ = build(root, [{"from": "A/", "to": "wiki/", "why": "", "ask": ""}, {"from": "B/", "to": "wiki/", "why": "", "ask": ""}])
+    assert plan_["collisions"] == ["wiki/Plan.md"]
+    with pytest.raises(SystemExit, match="одно место"):
+        run(root, plan_, dry=False)
+
+
+def test_prose_tags_urls_untouched(tmp_path):
+    root = tmp_path / "v"
+    text = "Projects are my focus. #Projects https://github.com/me/Projects [[Projects]] B version\n"
+    write(root, "Projects/Сайт/a.md", text)
+    write(root, "B/b.md", "b\n")
+    write(root, "Bases/x.base", 'filters:\n  - file.inFolder("Projects")\n')
+    rules_ = [{"from": "Projects/", "to": "projects/", "why": "", "ask": ""},
+              {"from": "B/", "to": "wiki/", "why": "", "ask": ""},
+              {"from": "Bases/", "to": "Bases/", "why": "", "ask": ""}]
+    run(root, build(root, rules_), dry=False)
+    assert (root / "projects/Сайт/a.md").read_text(encoding="utf-8") == text
+    assert 'file.inFolder("projects")' in (root / "Bases/x.base").read_text(encoding="utf-8")
+
+
+def test_folder_path_rewritten_but_not_word_or_url(tmp_path):
+    root = tmp_path / "v"
+    write(root, "Projects/Сайт/a.md", "папка Projects/Сайт/ — тут; слово Projects; https://x.com/Projects/Сайт\n")
+    write(root, "Bases/x.base", 'filters:\n  - file.inFolder("Projects/Сайт")\n')
+    rules_ = [{"from": "Projects/", "to": "projects/", "why": "", "ask": ""},
+              {"from": "Bases/", "to": "Bases/", "why": "", "ask": ""}]
+    run(root, build(root, rules_), dry=False)
+    assert (root / "projects/Сайт/a.md").read_text(encoding="utf-8") == \
+        "папка projects/Сайт/ — тут; слово Projects; https://x.com/Projects/Сайт\n"
+    assert 'file.inFolder("projects/Сайт")' in (root / "Bases/x.base").read_text(encoding="utf-8")

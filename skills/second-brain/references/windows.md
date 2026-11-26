@@ -14,8 +14,12 @@
 
 ```powershell
 New-Item -ItemType Directory -Force "$HOME\.agents\skills" | Out-Null
-curl.exe -fsSL https://codeload.github.com/wolkart/aifuture_hub/tar.gz/main | tar -xz -C "$HOME\.agents\skills" --strip-components=2 aifuture_hub-main/skills/second-brain
+curl.exe -fsSL -o "$env:TEMP\aifuture_hub.tar.gz" https://codeload.github.com/wolkart/aifuture_hub/tar.gz/main
+tar -xzf "$env:TEMP\aifuture_hub.tar.gz" -C "$HOME\.agents\skills" --strip-components=2 aifuture_hub-main/skills/second-brain
 ```
+
+Через файл, а не конвейером `curl.exe … | tar`: Windows PowerShell 5.1 перекодирует байты между
+программами, и архив приходит испорченным.
 
 Нужен Git: `git --version`. Нет — `winget install --id Git.Git`.
 

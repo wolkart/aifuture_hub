@@ -95,16 +95,36 @@ def _case_renames(root: Path, plan: dict, dry: bool) -> None:
                 os.rename(root / (o + ".tmp-case"), root / n)
 
 
+def _check_collisions(dest: dict) -> None:
+    seen = {}
+    for src, dst in dest.items():
+        if dst:
+            seen.setdefault(dst.casefold(), []).append(src)
+    bad = {k: v for k, v in seen.items() if len(v) > 1}
+    if bad:
+        lines = [f"{k}: " + ", ".join(v) for k, v in sorted(bad.items())]
+        raise SystemExit("два файла в одно место — поправь правила, ничего не тронуто:\n  " + "\n  ".join(lines))
+
+
 def _check_targets(root: Path, dest: dict) -> None:
     busy = []
     for src, dst in dest.items():
         if not dst or src == dst:
             continue
-        d, s = root / dst, resolve(root, src)
-        if d.exists() and dst not in dest and not (os.path.exists(s) and os.path.samefile(s, d)):
-            busy.append(dst)
+        d = root / dst
+        if d.exists() and dst not in dest:
+            s = resolve(root, src)
+            if not (os.path.exists(s) and os.path.samefile(s, d)):
+                busy.append(dst)
     if busy:
         raise SystemExit("занято — переносить некуда, ничего не тронуто:\n  " + "\n  ".join(busy))
+
+
+def _remove_empty_dirs(root: Path) -> None:
+    for d, dirs, files in os.walk(root, topdown=False):
+        rel = Path(d).relative_to(root).parts
+        if d != str(root) and not any(nfc(x) in SKIP_DIRS for x in rel) and not os.listdir(d):
+            os.rmdir(d)
 
 
 def run(root: Path, plan: dict, dry: bool) -> dict:
@@ -112,35 +132,58 @@ def run(root: Path, plan: dict, dry: bool) -> dict:
     dest = {nfc(k): (nfc(v) if v else None) for k, v in plan["dest"].items()}
     stems = renamed_stems(plan)
     before = broken_links(root)
+    _check_collisions(dest)
     _check_targets(root, dest)
     _case_renames(root, plan, dry)
+    count_before = sum(1 for _ in iter_files(root))
 
-    moved = skipped = 0
-    for src, dst in dest.items():
-        s = resolve(root, src)
-        if not os.path.lexists(s):
+    # заход 1: всё, что переезжает, — во временную папку (цепочки «А → Б, Б → В» не затирают друг друга)
+    stage = root / "_переезд" / ".перенос"
+    staged = []
+    for i, (src, dst) in enumerate(dest.items()):
+        if not dst or src == dst:
             continue
-        if dst is None:
+        s, d = resolve(root, src), root / dst
+        if not os.path.lexists(s) or (os.path.exists(d) and os.path.samefile(s, d)):
+            continue
+        staged.append((stage / str(i), d))
+        if not dry:
+            stage.mkdir(parents=True, exist_ok=True)
+            shutil.move(str(s), str(stage / str(i)))
+    # заход 2: «не берём» — после того, как всё ценное уже вынесено
+    skipped = 0
+    for src, dst in dest.items():
+        if dst is not None:
+            continue
+        s = resolve(root, src)
+        if os.path.lexists(s):
             skipped += 1
             if not dry:
                 s.unlink()
-            continue
-        if src == dst:
-            continue
-        d = root / dst
-        if os.path.exists(d) and os.path.samefile(s, d):
-            continue
-        moved += 1
-        if not dry:
-            d.parent.mkdir(parents=True, exist_ok=True)
-            shutil.move(str(s), str(d))
+    # заход 3: по местам
     if not dry:
-        for d, dirs, files in os.walk(root, topdown=False):
-            rel = Path(d).relative_to(root).parts
-            if d != str(root) and not any(nfc(x) in SKIP_DIRS for x in rel) and not os.listdir(d):
-                os.rmdir(d)
+        _remove_empty_dirs(root)
+        for tmp, d in staged:
+            if os.path.lexists(d):
+                raise SystemExit(f"занято: {d} — переносимый файл остался в {tmp}")
+            d.parent.mkdir(parents=True, exist_ok=True)
+            shutil.move(str(tmp), str(d))
+        if stage.is_dir() and not os.listdir(stage):
+            stage.rmdir()
+        _remove_empty_dirs(root)
+        count_after = sum(1 for _ in iter_files(root))
+        if count_after != count_before - skipped:
+            raise SystemExit(f"файлов было {count_before}, не взято {skipped}, а стало {count_after} — "
+                             "останови переезд и сверь с коммитом «Старый волт как был»")
+    moved = len(staged)
 
-    paths = PathRewriter(text_pairs(plan))
+    pairs = text_pairs(plan)
+    # в тексте — только пути: «Projects/…» переписываем, голое «Projects» — слово, тег или ссылка
+    paths = PathRewriter({**{k: v for k, v in pairs.items() if "/" in k},
+                          **{k + "/": v + "/" for k, v in pairs.items() if "/" not in k and k in folder_pairs(plan)}})
+    # в базах и холстах имя папки бывает целой строкой в кавычках: file.inFolder("Projects")
+    quoted = PathRewriter({q + k + q: q + v + q for k, v in pairs.items() if "/" not in k for q in ('"', "'")},
+                          anchors={'"', "'"})
     links = PathRewriter({"[[" + o: "[[" + n for o, n in stems.items()}, anchors={"[["}) if stems else None
     rewritten = 0
     for rel in iter_files(root):
@@ -149,6 +192,8 @@ def run(root: Path, plan: dict, dry: bool) -> dict:
         f = resolve(root, rel)
         t = read_text(f)
         new, _ = paths.sub(t)
+        if rel.endswith((".base", ".canvas")):
+            new, _ = quoted.sub(new)
         if links:
             new, _ = links.sub(new)
         if new != t:
