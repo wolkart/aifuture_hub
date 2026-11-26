@@ -5,6 +5,8 @@ import re
 import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))  # python3 -I не добавляет папку скрипта сам
+
 from vaultlib import iter_files, name_counts, nfc, read_text, wikilink, write_text
 
 START = "<!-- заметки проекта: начало (пересобирается скриптом второго мозга cards.py) -->"

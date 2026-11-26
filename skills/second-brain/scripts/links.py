@@ -3,6 +3,8 @@
 import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))  # python3 -I не добавляет папку скрипта сам
+
 from vaultlib import LINK_RE, iter_files, nfc, read_text, strip_code
 
 
