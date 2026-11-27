@@ -124,8 +124,16 @@ mkdir -p ~/.agents/skills
 curl -fsSL https://codeload.github.com/wolkart/aifuture_hub/tar.gz/main | tar -xz -C ~/.agents/skills --strip-components=2 aifuture_hub-main/skills/agent-memory
 ```
 
-На Windows — те же `curl.exe` и `tar` в PowerShell, папка `$HOME\.agents\skills`. Обновить скилл —
-та же команда.
+На Windows — в PowerShell, через файл: конвейер `curl.exe … | tar` в Windows PowerShell 5.1
+портит архив.
+
+```powershell
+New-Item -ItemType Directory -Force "$HOME\.agents\skills" | Out-Null
+curl.exe -fsSL -o "$env:TEMP\aifuture_hub.tar.gz" https://codeload.github.com/wolkart/aifuture_hub/tar.gz/main
+tar -xzf "$env:TEMP\aifuture_hub.tar.gz" -C "$HOME\.agents\skills" --strip-components=2 aifuture_hub-main/skills/agent-memory
+```
+
+Обновить скилл — та же команда.
 
 **1. Главный файл.** `~/.agents/AGENTS.md`: нет — создай; есть — проверь, есть ли раздел
 `## Память`. Нет раздела — допиши, есть старый — замени. Текст раздела — в
