@@ -1,0 +1,37 @@
+# Проверка скилла second-brain на Windows: Python-скрипты (pytest) и PowerShell-синхронизация (Pester).
+name: second-brain на Windows
+
+on:
+  push:
+    paths: ["skills/second-brain/**", ".github/workflows/second-brain-windows.yml"]
+  pull_request:
+    paths: ["skills/second-brain/**", ".github/workflows/second-brain-windows.yml"]
+  workflow_dispatch:
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - name: Git как у учеников по умолчанию
+        run: git config --global core.autocrlf true
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.9"
+      - name: pytest
+        run: |
+          python -m pip install --quiet pytest
+          python -m pytest -q skills/second-brain/tests
+      - name: Pester — sync.ps1 и задача Планировщика
+        shell: powershell
+        run: |
+          Install-Module Pester -MinimumVersion 5.5 -MaximumVersion 5.99 -Force -SkipPublisherCheck -Scope CurrentUser
+          Import-Module Pester -MinimumVersion 5.5 -MaximumVersion 5.99
+          $c = New-PesterConfiguration
+          $c.Run.Path = 'skills/second-brain/tests/sync.Tests.ps1'
+          $c.Run.Exit = $true
+          $c.Output.Verbosity = 'Detailed'
+          Invoke-Pester -Configuration $c

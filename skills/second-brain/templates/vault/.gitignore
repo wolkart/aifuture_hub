@@ -1,0 +1,17 @@
+# служебное macOS и Windows
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# состояние окна Obsidian: меняется постоянно, у каждого устройства своё
+.obsidian/workspace*.json
+.obsidian/cache
+
+# настройки плагинов: в них плагины держат ключи к нейросетям — в историю и на GitHub не отправляем
+.obsidian/plugins/*/data.json
+
+# корзина и следы синхронизаторов
+.trash/
+*.sync-conflict-*
+.stfolder
+.stversions
